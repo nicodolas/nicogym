@@ -1,12 +1,47 @@
-# Local secrets
+# Secrets and machine-local configuration
 .env
 .env.*
 !.env.example
-node_modules
+**/local.properties
+**/key.properties
+**/*.jks
+**/*.keystore
+
+# JavaScript / TypeScript
+node_modules/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+
+# Flutter / Dart
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.pub/
+**/build/
+**/coverage/
+app.*.symbols
+app.*.map.json
+
+# Android / Gradle / Kotlin
+**/.gradle/
+**/.kotlin/
+**/.cxx/
+**/captures/
+*.salive
+
+# Editors and operating systems
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+
+# Local agent tooling
 .omx/
 .codegraph/
-# Local tooling
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-build/
