@@ -45,6 +45,13 @@ export function createApp(dependencies: AppDependencies = {}) {
   app.get("/health", (context) =>
     context.json({ service: "nicogym-api", status: "ok" }),
   );
+  app.get("/", (context) =>
+    context.json({
+      service: "nicogym-api",
+      status: "ok",
+      health: "/health",
+    }),
+  );
   app.get("/api/health", (context) =>
     context.json({ service: "nicogym-api", status: "ok" }),
   );

@@ -5,6 +5,17 @@ import { createApp } from "../src/app.js";
 const authenticatedUser = { id: "user-1" };
 
 describe("API", () => {
+  it("identifies the API from its public root", async () => {
+    const response = await createApp().request("/");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      service: "nicogym-api",
+      status: "ok",
+      health: "/health",
+    });
+  });
+
   it("reports service health without touching the database", async () => {
     const response = await createApp().request("/health");
 
