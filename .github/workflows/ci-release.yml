@@ -53,6 +53,9 @@ jobs:
           flutter-version: 3.44.9
           channel: stable
           cache: true
+      - uses: shorebirdtech/setup-shorebird@v1
+        with:
+          cache: true
       - name: Restore Android signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -67,7 +70,12 @@ jobs:
       - working-directory: apps/client
         run: flutter pub get
       - working-directory: apps/client
-        run: flutter build apk --release
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+        run: >-
+          shorebird release android
+          --artifact apk
+          --flutter-version 3.44.9
       - name: Prepare release asset
         run: |
           cp apps/client/build/app/outputs/flutter-apk/app-release.apk nicogym-android.apk
@@ -78,4 +86,3 @@ jobs:
           gh release create "${GITHUB_REF_NAME}"
           nicogym-android.apk nicogym-android.apk.sha256
           --verify-tag --generate-notes
-

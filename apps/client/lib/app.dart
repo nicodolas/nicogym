@@ -90,8 +90,8 @@ class TodayScreen extends StatelessWidget {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final contentWidth = constraints.maxWidth > 720
-                ? 680.0
+            final contentWidth = constraints.maxWidth > 1120
+                ? 1080.0
                 : constraints.maxWidth;
             return Align(
               alignment: Alignment.topCenter,
@@ -107,23 +107,9 @@ class TodayScreen extends StatelessWidget {
                             apkDownloadUrl: apkDownloadUrl,
                             apiBaseUrl: apiBaseUrl,
                           ),
-                          const SizedBox(height: 44),
-                          Text(
-                            'HÔM NAY',
-                            style: Theme.of(context).textTheme.labelLarge,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'CHÂN + MÔNG',
-                            maxLines: 1,
-                            style: Theme.of(context).textTheme.displayLarge
-                                ?.copyWith(
-                                  fontSize: constraints.maxWidth < 430
-                                      ? 54
-                                      : 64,
-                                ),
-                          ),
-                          const SizedBox(height: 22),
+                          const SizedBox(height: 28),
+                          _TodayHero(compact: constraints.maxWidth < 760),
+                          const SizedBox(height: 18),
                           const _ReadinessStrip(),
                           const SizedBox(height: 28),
                           if (showRecoverySuggestion) ...[
@@ -145,17 +131,24 @@ class TodayScreen extends StatelessWidget {
       ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(20, 8, 20, 18),
-        child: FilledButton(
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(58),
-            backgroundColor: _ink,
-            foregroundColor: _paper,
-            shape: const RoundedRectangleBorder(),
+        child: Align(
+          heightFactor: 1,
+          child: SizedBox(
+            width: 680,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(60),
+                backgroundColor: _ink,
+                foregroundColor: _paper,
+                shape: const RoundedRectangleBorder(),
+              ),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const WorkoutScreen()),
+              ),
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Bắt đầu buổi tập'),
+            ),
           ),
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const WorkoutScreen()),
-          ),
-          child: const Text('Bắt đầu buổi tập'),
         ),
       ),
     );
@@ -209,8 +202,16 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(width: 10, height: 28, color: _lime),
-        const SizedBox(width: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.asset(
+            'assets/images/nicogym-mark.png',
+            width: 34,
+            height: 34,
+            fit: BoxFit.cover,
+          ),
+        ),
+        const SizedBox(width: 11),
         Text('NICOGYM', style: Theme.of(context).textTheme.titleLarge),
         const Spacer(),
         if (apkDownloadUrl.isNotEmpty)
@@ -250,6 +251,91 @@ class _Header extends StatelessWidget {
   }
 }
 
+class _TodayHero extends StatelessWidget {
+  const _TodayHero({required this.compact});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final copy = Padding(
+      padding: EdgeInsets.fromLTRB(22, compact ? 22 : 30, 22, 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.calendar_today_outlined, size: 16, color: _lime),
+              const SizedBox(width: 8),
+              Text(
+                'HÔM NAY',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: _paper,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const Spacer(),
+              const Text(
+                '45 PHÚT',
+                style: TextStyle(color: Color(0xFFBFC3B8), fontSize: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'CHÂN + MÔNG',
+            maxLines: 1,
+            style: Theme.of(context).textTheme.displayLarge?.copyWith(
+              color: _paper,
+              fontSize: compact ? 54 : 70,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '4 bài · 12 hiệp · ưu tiên kỹ thuật',
+            style: TextStyle(color: Color(0xFFBFC3B8)),
+          ),
+        ],
+      ),
+    );
+
+    final artwork = Semantics(
+      image: true,
+      label: 'Minh họa tư thế tập máy ép ngực đúng kỹ thuật',
+      child: Image.asset(
+        'assets/images/training-hero.png',
+        fit: BoxFit.cover,
+        alignment: Alignment.centerRight,
+      ),
+    );
+
+    return Container(
+      height: compact ? 360 : 300,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: _ink,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: compact
+          ? Column(
+              children: [
+                SizedBox(height: 190, width: double.infinity, child: copy),
+                Expanded(
+                  child: SizedBox(width: double.infinity, child: artwork),
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(flex: 4, child: copy),
+                Expanded(flex: 6, child: artwork),
+              ],
+            ),
+    );
+  }
+}
+
 class _ReadinessStrip extends StatelessWidget {
   const _ReadinessStrip();
 
@@ -258,24 +344,55 @@ class _ReadinessStrip extends StatelessWidget {
     const states = [true, true, false, true, false];
     return Semantics(
       label: '3 trên 5 nhóm cơ sẵn sàng',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              for (final ready in states)
-                Expanded(
-                  child: Container(
-                    height: 7,
-                    margin: const EdgeInsets.only(right: 4),
-                    color: ready ? _ink : _ink.withValues(alpha: .14),
-                  ),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .65),
+          border: Border.all(color: _ink.withValues(alpha: .09)),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.bolt_rounded, size: 20),
+                const SizedBox(width: 6),
+                Text(
+                  'MỨC SẴN SÀNG',
+                  style: Theme.of(context).textTheme.labelLarge,
                 ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Text('3/5 nhóm cơ sẵn sàng', style: TextStyle(color: _muted)),
-        ],
+                const Spacer(),
+                const Text(
+                  'TỐT',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                for (final ready in states)
+                  Expanded(
+                    child: Container(
+                      height: 7,
+                      margin: const EdgeInsets.only(right: 4),
+                      color: ready ? _ink : _ink.withValues(alpha: .14),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Wrap(
+              spacing: 14,
+              runSpacing: 4,
+              children: [
+                Text('3/5 nhóm cơ sẵn sàng', style: TextStyle(color: _muted)),
+                Text('Nghỉ đủ 48 giờ', style: TextStyle(color: _muted)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -313,12 +430,24 @@ class _WorkoutOverview extends StatelessWidget {
       ('04', 'Calf raise', '3 × 12'),
     ];
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Row(
+          children: [
+            Text('BÀI TẬP', style: Theme.of(context).textTheme.titleLarge),
+            const Spacer(),
+            const Text('12 HIỆP', style: TextStyle(color: _muted)),
+          ],
+        ),
+        const SizedBox(height: 8),
         for (final exercise in exercises)
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 17),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Color(0x26111310))),
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .56),
+              border: Border.all(color: _ink.withValues(alpha: .08)),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
               children: [
@@ -336,6 +465,8 @@ class _WorkoutOverview extends StatelessWidget {
                   ),
                 ),
                 Text(exercise.$3),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right_rounded, color: _muted),
               ],
             ),
           ),

@@ -2,6 +2,8 @@
 
 NicoGym is a mobile-first workout planner for beginners who do not always know what to train, which machine to use, or how long a muscle group should recover.
 
+**Web preview:** [nicodolasgym.netlify.app](https://nicodolasgym.netlify.app/)
+
 The project prioritizes a simple daily flow: show the scheduled workout, explain why a change may be useful, require confirmation before changing the plan, and make sets quick to record.
 
 > **Project status:** early MVP. The current build demonstrates the Today experience, workout logging UI, authentication screens, and the rule-based recommendation foundation. Scheduling, exercise media, progress history, and full client-to-API workout synchronization are still being developed.
