@@ -1,0 +1,12 @@
+{
+  "name": "nicogym",
+  "private": true,
+  "workspaces": [
+    "apps/api"
+  ],
+  "scripts": {
+    "api:dev": "npm run dev --workspace @nicogym/api",
+    "api:test": "npm run test --workspace @nicogym/api",
+    "api:typecheck": "npm run typecheck --workspace @nicogym/api"
+  }
+}

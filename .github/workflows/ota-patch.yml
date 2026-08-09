@@ -1,0 +1,42 @@
+name: Publish Shorebird OTA patch
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: Exact base version, for example 1.0.0+1
+        required: true
+      channel:
+        description: Shorebird channel
+        type: choice
+        options: [beta, stable]
+        default: beta
+
+permissions:
+  contents: read
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.9
+          channel: stable
+          cache: true
+      - uses: shorebirdtech/setup-shorebird@v1
+        with:
+          cache: true
+      - working-directory: apps/client
+        run: flutter pub get
+      - name: Publish exact-release patch
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+        working-directory: apps/client
+        run: >-
+          shorebird patch android
+          --release-version "${{ inputs.release_version }}"
+          --channel "${{ inputs.channel }}"
+          --force
+

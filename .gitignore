@@ -1,0 +1,12 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+node_modules
+.omx/
+.codegraph/
+# Local tooling
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/

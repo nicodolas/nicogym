@@ -1,0 +1,28 @@
+{
+  "name": "@nicogym/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node scripts/require-direct-url.mjs && drizzle-kit migrate"
+  },
+  "dependencies": {
+    "@hono/node-server": "latest",
+    "@neondatabase/serverless": "latest",
+    "better-auth": "latest",
+    "dotenv": "latest",
+    "drizzle-orm": "latest",
+    "hono": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "drizzle-kit": "latest",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

@@ -1,0 +1,81 @@
+name: Verify and release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run api:test
+      - run: npm run api:typecheck
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.9
+          channel: stable
+          cache: true
+      - working-directory: apps/client
+        run: flutter pub get
+      - working-directory: apps/client
+        run: flutter analyze
+      - working-directory: apps/client
+        run: flutter test
+      - working-directory: apps/client
+        run: >-
+          flutter build web --release
+          --dart-define=APK_DOWNLOAD_URL=https://github.com/${{ github.repository }}/releases/latest/download/nicogym-android.apk
+
+  release-apk:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.9
+          channel: stable
+          cache: true
+      - name: Restore Android signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        working-directory: apps/client/android
+        run: |
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > upload-keystore.jks
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=%s\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" "../upload-keystore.jks" > key.properties
+      - working-directory: apps/client
+        run: flutter pub get
+      - working-directory: apps/client
+        run: flutter build apk --release
+      - name: Prepare release asset
+        run: |
+          cp apps/client/build/app/outputs/flutter-apk/app-release.apk nicogym-android.apk
+          sha256sum nicogym-android.apk > nicogym-android.apk.sha256
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${GITHUB_REF_NAME}"
+          nicogym-android.apk nicogym-android.apk.sha256
+          --verify-tag --generate-notes
+
