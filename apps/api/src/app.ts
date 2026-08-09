@@ -45,6 +45,9 @@ export function createApp(dependencies: AppDependencies = {}) {
   app.get("/health", (context) =>
     context.json({ service: "nicogym-api", status: "ok" }),
   );
+  app.get("/api/health", (context) =>
+    context.json({ service: "nicogym-api", status: "ok" }),
+  );
 
   if (dependencies.authHandler) {
     app.on(["GET", "POST"], "/api/auth/*", (context) =>

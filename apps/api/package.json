@@ -22,7 +22,7 @@
     "@types/node": "latest",
     "drizzle-kit": "latest",
     "tsx": "latest",
-    "typescript": "latest",
+    "typescript": "5.9.3",
     "vitest": "latest"
   }
 }

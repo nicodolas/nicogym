@@ -12,6 +12,13 @@ describe("API", () => {
     expect(await response.json()).toEqual({ service: "nicogym-api", status: "ok" });
   });
 
+  it("reports service health through the Vercel function path", async () => {
+    const response = await createApp().request("/api/health");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ service: "nicogym-api", status: "ok" });
+  });
+
   it("rejects malformed set logs", async () => {
     const response = await createApp({ currentUser: async () => authenticatedUser }).request("/api/workout-sets", {
       method: "POST",
