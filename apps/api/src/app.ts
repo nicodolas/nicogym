@@ -100,9 +100,17 @@ export function createApp(dependencies: AppDependencies = {}) {
   }
 
   app.use(
-    "/api/*",
+    "/api/admin/exercises/import/preview",
     bodyLimit({
       maxSize: 512 * 1024,
+      onError: (context) => context.json({ error: "payload_too_large" }, 413),
+    }),
+  );
+
+  app.use(
+    "/api/*",
+    bodyLimit({
+      maxSize: 1024 * 1024,
       onError: (context) => context.json({ error: "payload_too_large" }, 413),
     }),
   );

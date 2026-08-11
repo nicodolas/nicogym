@@ -194,6 +194,19 @@ describe("API", () => {
     }
   });
 
+  it("rejects exercise preview documents over 512 KB", async () => {
+    const response = await createApp({ currentUser: async () => adminUser }).request(
+      "/api/admin/exercises/import/preview",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ padding: "x".repeat(513 * 1024) }),
+      },
+    );
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: "payload_too_large" });
+  });
+
   it("returns the authenticated member planner", async () => {
     const response = await createApp({
       currentUser: async () => authenticatedUser,

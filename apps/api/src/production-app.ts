@@ -94,7 +94,10 @@ export function createProductionApp() {
           await httpSql.transaction((transaction) => [
             transaction`
               select 1 / case when (
-                select count(*)::text || ':' || coalesce(max(updated_at)::text, 'none') from exercises
+                select count(*)::text || ':' || coalesce(
+                  md5(string_agg(slug || ':' || updated_at::text, ',' order by slug)),
+                  'none'
+                ) from exercises
               ) = ${preview.catalogRevision} then 1 else 0 end
             `,
             ...preview.exercises.map((exercise) => preview.mode === "create"
@@ -252,7 +255,10 @@ type SqlExecutor = Pick<ReturnType<typeof createDatabase>, "execute">;
 
 async function catalogRevision(database: SqlExecutor): Promise<string> {
   const result = await database.execute(sql`
-    select count(*)::text || ':' || coalesce(max(updated_at)::text, 'none') as revision
+    select count(*)::text || ':' || coalesce(
+      md5(string_agg(slug || ':' || updated_at::text, ',' order by slug)),
+      'none'
+    ) as revision
     from exercises
   `);
   return String(result.rows[0]?.revision ?? "0:none");

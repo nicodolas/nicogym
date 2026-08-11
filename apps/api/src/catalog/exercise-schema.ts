@@ -45,8 +45,7 @@ export const exerciseImportSchema = z.object({
 });
 
 export const importApplySchema = z.object({
-  previewToken: z.string().min(16).max(512 * 1024),
+  previewToken: z.string().min(16).max(1024 * 1024),
 }).strict();
 
 export type ExerciseImport = z.infer<typeof exerciseImportSchema>;
-
