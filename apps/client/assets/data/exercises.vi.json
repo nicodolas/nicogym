@@ -1,0 +1,74 @@
+[
+  {
+    "id": "leg-press",
+    "name": "Leg press",
+    "prescription": "3 × 8–10",
+    "primaryMuscles": ["Đùi trước", "Mông", "Đùi sau"],
+    "equipment": "Máy leg press",
+    "summary": "Đẩy bàn máy bằng cả bàn chân trong khi lưng và hông luôn tựa chắc vào ghế.",
+    "setup": [
+      "Chỉnh ghế để khi bắt đầu, đầu gối gập thoải mái và không ép sát ngực.",
+      "Đặt hai bàn chân rộng ngang vai, gót chân nằm trọn trên bàn đạp.",
+      "Siết nhẹ bụng, giữ đầu, lưng và hông áp vào đệm."
+    ],
+    "steps": [
+      "Mở chốt an toàn và đẩy bàn máy lên bằng cả bàn chân; không khóa cứng đầu gối.",
+      "Hít vào, hạ tạ chậm đến khi đầu gối gập trong phạm vi bạn vẫn giữ được lưng và hông trên ghế.",
+      "Thở ra, đẩy qua giữa bàn chân và gót để trở về vị trí đầu."
+    ],
+    "cues": ["Đầu gối đi cùng hướng mũi chân", "Hạ chậm, đẩy dứt khoát", "Giữ gót chân trên bàn đạp"],
+    "mistakes": ["Để đầu gối đổ vào trong", "Hạ quá sâu khiến hông cuộn khỏi ghế", "Khóa cứng đầu gối ở đỉnh"],
+    "safety": "Dừng bài nếu có đau nhói ở gối, hông hoặc lưng. Lần đầu dùng máy, hãy chọn mức tạ nhẹ và nhờ nhân viên phòng gym kiểm tra chốt an toàn.",
+    "sourceLabel": "ACE Exercise Library",
+    "sourceUrl": "https://www.acefitness.org/resources/everyone/exercise-library/",
+    "videoUrl": "https://www.youtube.com/results?search_query=ACE+leg+press+exercise"
+  },
+  {
+    "id": "romanian-deadlift",
+    "name": "Romanian deadlift",
+    "prescription": "3 × 8",
+    "primaryMuscles": ["Đùi sau", "Mông", "Lưng dưới"],
+    "equipment": "Thanh đòn hoặc tạ đơn",
+    "summary": "Gập tại hông, đưa tạ sát chân xuống trong khi cột sống giữ trung lập.",
+    "setup": ["Đứng rộng ngang hông, giữ tạ trước đùi.", "Gập gối nhẹ, kéo vai xuống và siết bụng.", "Phân bố trọng lượng đều trên cả bàn chân."],
+    "steps": ["Đẩy hông ra sau như đang khép cửa bằng mông; tạ đi sát đùi và cẳng chân.", "Hạ đến khi đùi sau căng rõ nhưng lưng vẫn trung lập.", "Thở ra, đẩy sàn và đưa hông về trước để đứng thẳng; không ngả người ra sau."],
+    "cues": ["Hông lùi, không ngồi xổm", "Tạ luôn sát chân", "Cổ nối thẳng với lưng"],
+    "mistakes": ["Cong lưng để cố hạ sâu", "Đẩy tạ xa khỏi người", "Gập gối quá nhiều thành squat"],
+    "safety": "Học chuyển động hip hinge không tạ trước. Nếu không giữ được lưng trung lập, giảm tạ và phạm vi chuyển động.",
+    "sourceLabel": "ACE Exercise Library",
+    "sourceUrl": "https://www.acefitness.org/resources/everyone/exercise-library/127/single-arm-single-leg-romanian-dead-lift/",
+    "videoUrl": "https://www.youtube.com/results?search_query=ACE+Romanian+deadlift+form"
+  },
+  {
+    "id": "leg-curl",
+    "name": "Leg curl",
+    "prescription": "3 × 10–12",
+    "primaryMuscles": ["Đùi sau"],
+    "equipment": "Máy leg curl",
+    "summary": "Gập gối có kiểm soát mà không nhấc hông hoặc ưỡn lưng.",
+    "setup": ["Căn trục xoay của máy ngang khớp gối.", "Đặt đệm ngay phía trên gót chân, không tì trực tiếp lên gân Achilles.", "Giữ hông sát đệm và nắm tay cầm."],
+    "steps": ["Thở ra, gập gối và kéo gót về phía mông.", "Dừng ngắn ở điểm co mà hông vẫn không nhấc.", "Hít vào, duỗi chân chậm về vị trí đầu; không để chồng tạ va mạnh."],
+    "cues": ["Hông nặng trên đệm", "Gập từ đầu gối", "Trả tạ chậm"],
+    "mistakes": ["Nhấc hông để lấy đà", "Ưỡn lưng", "Thả tạ rơi ở chiều xuống"],
+    "safety": "Chỉnh máy đúng chiều dài chân trước khi tăng tạ. Dừng nếu cảm thấy đau nhói phía sau gối.",
+    "sourceLabel": "ACE – Prone Hamstrings Curl",
+    "sourceUrl": "https://www.acefitness.org/resources/everyone/exercise-library/131/prone-lying-hamstrings-curl/",
+    "videoUrl": "https://www.youtube.com/results?search_query=ACE+lying+hamstring+curl"
+  },
+  {
+    "id": "calf-raise",
+    "name": "Calf raise",
+    "prescription": "3 × 12",
+    "primaryMuscles": ["Bắp chân"],
+    "equipment": "Máy calf raise",
+    "summary": "Nâng và hạ gót qua toàn bộ biên độ bằng lực bắp chân, không bật nảy.",
+    "setup": ["Đặt phần trước bàn chân chắc trên bệ và để gót có khoảng trống di chuyển.", "Giữ bàn chân song song, gối mềm và thân người ổn định.", "Bắt đầu với mức tạ cho phép giữ thăng bằng tốt."],
+    "steps": ["Thở ra, đẩy qua phần trước bàn chân để nâng gót cao có kiểm soát.", "Giữ ngắn ở đỉnh mà không xoay cổ chân.", "Hít vào, hạ gót chậm đến khi bắp chân được kéo giãn thoải mái."],
+    "cues": ["Đi thẳng lên, không lắc", "Giữ một nhịp ở đỉnh", "Hạ gót thật chậm"],
+    "mistakes": ["Bật nảy để lấy đà", "Cổ chân đổ ra ngoài", "Dùng biên độ quá ngắn"],
+    "safety": "Luôn dùng tay vịn khi cần và không cố hạ gót sâu hơn biên độ cổ chân thoải mái.",
+    "sourceLabel": "ACE – Lower Leg Exercises",
+    "sourceUrl": "https://www.acefitness.org/resources/everyone/exercise-library/body-part/legs-calves-and-shins/",
+    "videoUrl": "https://www.youtube.com/results?search_query=ACE+calf+raise+exercise"
+  }
+]

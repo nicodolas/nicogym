@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nicogym/auth/auth_api.dart';
 import 'package:nicogym/auth/auth_screen.dart';
+import 'package:nicogym/workouts/exercise.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 const _ink = Color(0xFF111310);
@@ -17,11 +18,13 @@ class NicoGymApp extends StatelessWidget {
       'API_BASE_URL',
       defaultValue: 'http://localhost:3000',
     ),
+    this.exerciseLoader = ExerciseLibrary.load,
   });
 
   final bool showRecoverySuggestion;
   final String apkDownloadUrl;
   final String apiBaseUrl;
+  final Future<List<Exercise>> Function() exerciseLoader;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +70,7 @@ class NicoGymApp extends StatelessWidget {
         showRecoverySuggestion: showRecoverySuggestion,
         apkDownloadUrl: apkDownloadUrl,
         apiBaseUrl: apiBaseUrl,
+        exerciseLoader: exerciseLoader,
       ),
     );
   }
@@ -78,11 +82,13 @@ class TodayScreen extends StatelessWidget {
     required this.showRecoverySuggestion,
     required this.apkDownloadUrl,
     required this.apiBaseUrl,
+    required this.exerciseLoader,
   });
 
   final bool showRecoverySuggestion;
   final String apkDownloadUrl;
   final String apiBaseUrl;
+  final Future<List<Exercise>> Function() exerciseLoader;
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +124,7 @@ class TodayScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 20),
                           ],
-                          const _WorkoutOverview(),
+                          _WorkoutOverview(loader: exerciseLoader),
                         ],
                       ),
                     ),
@@ -143,7 +149,9 @@ class TodayScreen extends StatelessWidget {
                 shape: const RoundedRectangleBorder(),
               ),
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const WorkoutScreen()),
+                MaterialPageRoute<void>(
+                  builder: (_) => _WorkoutLoaderScreen(loader: exerciseLoader),
+                ),
               ),
               icon: const Icon(Icons.play_arrow_rounded),
               label: const Text('Bắt đầu buổi tập'),
@@ -190,6 +198,35 @@ class TodayScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _WorkoutLoaderScreen extends StatefulWidget {
+  const _WorkoutLoaderScreen({required this.loader});
+
+  final Future<List<Exercise>> Function() loader;
+
+  @override
+  State<_WorkoutLoaderScreen> createState() => _WorkoutLoaderScreenState();
+}
+
+class _WorkoutLoaderScreenState extends State<_WorkoutLoaderScreen> {
+  late final Future<List<Exercise>> _exercises = widget.loader();
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<Exercise>>(
+    future: _exercises,
+    builder: (context, snapshot) {
+      if (snapshot.hasError || (snapshot.hasData && snapshot.data!.isEmpty)) {
+        return const Scaffold(
+          body: Center(child: Text('Không tải được bài tập. Hãy thử lại.')),
+        );
+      }
+      if (!snapshot.hasData) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      return WorkoutScreen(exercise: snapshot.data!.first);
+    },
+  );
 }
 
 class _Header extends StatelessWidget {
@@ -418,17 +455,20 @@ class _SuggestionNotice extends StatelessWidget {
   }
 }
 
-class _WorkoutOverview extends StatelessWidget {
-  const _WorkoutOverview();
+class _WorkoutOverview extends StatefulWidget {
+  const _WorkoutOverview({required this.loader});
+
+  final Future<List<Exercise>> Function() loader;
+
+  @override
+  State<_WorkoutOverview> createState() => _WorkoutOverviewState();
+}
+
+class _WorkoutOverviewState extends State<_WorkoutOverview> {
+  late final Future<List<Exercise>> _exercises = widget.loader();
 
   @override
   Widget build(BuildContext context) {
-    const exercises = [
-      ('01', 'Leg press', '3 × 8–10'),
-      ('02', 'Romanian deadlift', '3 × 8'),
-      ('03', 'Leg curl', '3 × 10–12'),
-      ('04', 'Calf raise', '3 × 12'),
-    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -440,43 +480,115 @@ class _WorkoutOverview extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        for (final exercise in exercises)
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .56),
-              border: Border.all(color: _ink.withValues(alpha: .08)),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
+        FutureBuilder<List<Exercise>>(
+          future: _exercises,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return const _LibraryMessage(
+                icon: Icons.error_outline,
+                message: 'Không tải được thư viện bài tập.',
+              );
+            }
+            if (!snapshot.hasData) {
+              return const _LibraryMessage(
+                icon: Icons.hourglass_top_rounded,
+                message: 'Đang chuẩn bị bài tập…',
+              );
+            }
+            return Column(
               children: [
-                SizedBox(
-                  width: 38,
-                  child: Text(
-                    exercise.$1,
-                    style: const TextStyle(color: _muted),
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    exercise.$2,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-                Text(exercise.$3),
-                const SizedBox(width: 4),
-                const Icon(Icons.chevron_right_rounded, color: _muted),
+                for (final entry in snapshot.data!.indexed)
+                  _ExerciseCard(index: entry.$1, exercise: entry.$2),
               ],
-            ),
-          ),
+            );
+          },
+        ),
       ],
     );
   }
 }
 
+class _LibraryMessage extends StatelessWidget {
+  const _LibraryMessage({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 24),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [Icon(icon, size: 18), const SizedBox(width: 8), Text(message)],
+    ),
+  );
+}
+
+class _ExerciseCard extends StatelessWidget {
+  const _ExerciseCard({required this.index, required this.exercise});
+
+  final int index;
+  final Exercise exercise;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Material(
+      color: Colors.white.withValues(alpha: .56),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: _ink.withValues(alpha: .08)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => WorkoutScreen(exercise: exercise),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 38,
+                child: Text(
+                  '${index + 1}'.padLeft(2, '0'),
+                  style: const TextStyle(color: _muted),
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      exercise.name,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      exercise.primaryMuscles.join(' · '),
+                      style: const TextStyle(color: _muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Text(exercise.prescription),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right_rounded, color: _muted),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class WorkoutScreen extends StatefulWidget {
-  const WorkoutScreen({super.key});
+  const WorkoutScreen({super.key, required this.exercise});
+
+  final Exercise exercise;
 
   @override
   State<WorkoutScreen> createState() => _WorkoutScreenState();
@@ -509,66 +621,215 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('LEG PRESS', style: Theme.of(context).textTheme.titleLarge),
+        title: Text(
+          widget.exercise.name.toUpperCase(),
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-          children: [
-            Text('Leg press', style: Theme.of(context).textTheme.displayLarge),
-            const SizedBox(height: 12),
-            const Text(
-              'Đặt bàn chân ngang vai. Hạ có kiểm soát, giữ lưng và hông áp sát ghế.',
-            ),
-            const SizedBox(height: 32),
-            Text(
-              'HIỆP ${_sets.length + 1}',
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
-            const SizedBox(height: 10),
-            Row(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 820),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
               children: [
-                Expanded(
-                  child: _MetricInput(
-                    keyName: 'load-input',
-                    label: 'KG',
-                    controller: _loadController,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final muscle in widget.exercise.primaryMuscles)
+                      Chip(label: Text(muscle)),
+                    Chip(
+                      avatar: const Icon(Icons.fitness_center, size: 16),
+                      label: Text(widget.exercise.equipment),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  widget.exercise.name,
+                  style: Theme.of(context).textTheme.displayLarge,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  widget.exercise.summary,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 28),
+                _GuideSection(
+                  title: 'CHUẨN BỊ',
+                  icon: Icons.tune_rounded,
+                  items: widget.exercise.setup,
+                ),
+                _GuideSection(
+                  title: 'CÁCH THỰC HIỆN',
+                  icon: Icons.format_list_numbered_rounded,
+                  items: widget.exercise.steps,
+                  numbered: true,
+                ),
+                _GuideSection(
+                  title: 'NHỚ 3 ĐIỂM',
+                  icon: Icons.bolt_rounded,
+                  items: widget.exercise.cues,
+                  highlight: true,
+                ),
+                _GuideSection(
+                  title: 'LỖI THƯỜNG GẶP',
+                  icon: Icons.warning_amber_rounded,
+                  items: widget.exercise.mistakes,
+                ),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: .1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.health_and_safety_outlined, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(widget.exercise.safety)),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _MetricInput(
-                    keyName: 'reps-input',
-                    label: 'LẦN',
-                    controller: _repsController,
-                  ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () => launchUrl(
+                        Uri.parse(widget.exercise.videoUrl),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      icon: const Icon(Icons.play_circle_outline_rounded),
+                      label: const Text('Xem video mẫu'),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => launchUrl(
+                        Uri.parse(widget.exercise.sourceUrl),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                      label: Text('Nguồn: ${widget.exercise.sourceLabel}'),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 32),
+                Text(
+                  'GHI NHẬN HIỆP',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'HIỆP ${_sets.length + 1}',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MetricInput(
+                        keyName: 'load-input',
+                        label: 'KG',
+                        controller: _loadController,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _MetricInput(
+                        keyName: 'reps-input',
+                        label: 'LẦN',
+                        controller: _repsController,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(58),
+                    backgroundColor: _lime,
+                    foregroundColor: _ink,
+                    shape: const RoundedRectangleBorder(),
+                  ),
+                  onPressed: _logSet,
+                  child: const Text('Ghi hiệp'),
+                ),
+                const SizedBox(height: 24),
+                for (final entry in _sets.indexed)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Text('${entry.$1 + 1}'.padLeft(2, '0')),
+                    title: Text(entry.$2),
+                    trailing: const Icon(Icons.check, size: 18),
+                  ),
               ],
             ),
-            const SizedBox(height: 10),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(58),
-                backgroundColor: _lime,
-                foregroundColor: _ink,
-                shape: const RoundedRectangleBorder(),
-              ),
-              onPressed: _logSet,
-              child: const Text('Ghi hiệp'),
-            ),
-            const SizedBox(height: 24),
-            for (final entry in _sets.indexed)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Text('${entry.$1 + 1}'.padLeft(2, '0')),
-                title: Text(entry.$2),
-                trailing: const Icon(Icons.check, size: 18),
-              ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _GuideSection extends StatelessWidget {
+  const _GuideSection({
+    required this.title,
+    required this.icon,
+    required this.items,
+    this.numbered = false,
+    this.highlight = false,
+  });
+
+  final String title;
+  final IconData icon;
+  final List<String> items;
+  final bool numbered;
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 24),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        for (final entry in items.indexed)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: highlight
+                  ? _lime.withValues(alpha: .35)
+                  : Colors.white.withValues(alpha: .48),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 24,
+                  child: Text(numbered ? '${entry.$1 + 1}.' : '•'),
+                ),
+                Expanded(child: Text(entry.$2)),
+              ],
+            ),
+          ),
+      ],
+    ),
+  );
 }
 
 class _MetricInput extends StatelessWidget {
