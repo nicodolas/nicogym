@@ -115,6 +115,18 @@ export const recoveryPreferences = pgTable(
   (table) => [primaryKey({ columns: [table.profileId, table.muscleGroupId] })],
 );
 
+export const plannerStates = pgTable("planner_states", {
+  profileId: uuid("profile_id")
+    .primaryKey()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  weeklySchedule: jsonb("weekly_schedule")
+    .$type<Array<{ day: number; title: string }>>()
+    .notNull(),
+  recoveryHours: integer("recovery_hours").notNull().default(48),
+  todayWorkout: text("today_workout").notNull().default("Chân + Mông"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const recommendationRuns = pgTable("recommendation_runs", {
   id: uuid("id").defaultRandom().primaryKey(),
   profileId: uuid("profile_id").notNull().references(() => profiles.id),

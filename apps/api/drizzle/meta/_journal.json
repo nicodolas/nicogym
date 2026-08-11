@@ -15,6 +15,13 @@
       "when": 1786211647285,
       "tag": "0001_supreme_wilson_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786433145407,
+      "tag": "0002_lean_arachne",
+      "breakpoints": true
     }
   ]
 }

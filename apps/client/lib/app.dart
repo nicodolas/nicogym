@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:nicogym/auth/auth_api.dart';
 import 'package:nicogym/auth/auth_screen.dart';
 import 'package:nicogym/member/member_hub.dart';
+import 'package:nicogym/member/planner_api.dart';
 import 'package:nicogym/workouts/exercise.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
@@ -343,6 +344,10 @@ class _Header extends StatelessWidget {
       MaterialPageRoute<void>(
         builder: (memberContext) => MemberHubScreen(
           exerciseLoader: exerciseLoader,
+          plannerRepository: PlannerApi(
+            baseUrl: Uri.parse(apiBaseUrl),
+            tokenStore: authTokenStore,
+          ),
           onOpenExercise: (exercise) => Navigator.of(memberContext).push(
             MaterialPageRoute<void>(
               builder: (_) => WorkoutScreen(exercise: exercise),

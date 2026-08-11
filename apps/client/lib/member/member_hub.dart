@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nicogym/member/planner_api.dart';
 import 'package:nicogym/workouts/exercise.dart';
 
 class MemberHubScreen extends StatefulWidget {
@@ -7,11 +8,13 @@ class MemberHubScreen extends StatefulWidget {
     required this.exerciseLoader,
     required this.onOpenExercise,
     this.initialTab = 0,
+    this.plannerRepository,
   });
 
   final Future<List<Exercise>> Function() exerciseLoader;
   final ValueChanged<Exercise> onOpenExercise;
   final int initialTab;
+  final PlannerRepository? plannerRepository;
 
   @override
   State<MemberHubScreen> createState() => _MemberHubScreenState();
@@ -30,7 +33,7 @@ class _MemberHubScreenState extends State<MemberHubScreen> {
           loader: widget.exerciseLoader,
           onOpen: widget.onOpenExercise,
         ),
-        const _SchedulePlanner(),
+        _SchedulePlanner(repository: widget.plannerRepository),
       ],
     ),
     bottomNavigationBar: NavigationBar(
@@ -170,7 +173,9 @@ class _ExerciseLibraryState extends State<_ExerciseLibrary> {
 }
 
 class _SchedulePlanner extends StatefulWidget {
-  const _SchedulePlanner();
+  const _SchedulePlanner({this.repository});
+
+  final PlannerRepository? repository;
 
   @override
   State<_SchedulePlanner> createState() => _SchedulePlannerState();
@@ -178,13 +183,72 @@ class _SchedulePlanner extends StatefulWidget {
 
 class _SchedulePlannerState extends State<_SchedulePlanner> {
   double _recoveryHours = 48;
-  bool _acceptedSuggestion = false;
+  String _todayWorkout = 'Chân + Mông';
   bool _dismissedSuggestion = false;
+  List<PlannedSession> _weeklySchedule = PlannerState.defaults.weeklySchedule;
+  bool _loading = false;
+  bool _saving = false;
+  String? _syncError;
+  bool _retryLoad = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.repository != null) _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final state = await widget.repository!.load() ?? PlannerState.defaults;
+      if (!mounted) return;
+      setState(() {
+        _weeklySchedule = state.weeklySchedule;
+        _recoveryHours = state.recoveryHours.toDouble();
+        _todayWorkout = state.todayWorkout;
+        _syncError = null;
+        _retryLoad = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _syncError = 'Đang dùng lịch trên thiết bị. Thử đồng bộ lại.';
+          _retryLoad = true;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _save() async {
+    if (widget.repository == null) return;
+    setState(() {
+      _saving = true;
+      _syncError = null;
+      _retryLoad = false;
+    });
+    try {
+      await widget.repository!.save(
+        PlannerState(
+          weeklySchedule: _weeklySchedule,
+          recoveryHours: _recoveryHours.round(),
+          todayWorkout: _todayWorkout,
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(() => _syncError = 'Chưa lưu được thay đổi. Chạm để thử lại.');
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final legsReady = 24 >= _recoveryHours;
-    final today = _acceptedSuggestion ? 'Ngực + Tay sau' : 'Chân + Mông';
+    final acceptedSuggestion = _todayWorkout != 'Chân + Mông';
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
       children: [
@@ -193,6 +257,18 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
         const Text(
           'Ưu tiên lịch đã xếp. Thuật toán chỉ đề nghị đổi và luôn cần bạn xác nhận.',
         ),
+        if (_loading || _saving) ...[
+          const SizedBox(height: 12),
+          const LinearProgressIndicator(),
+        ],
+        if (_syncError != null) ...[
+          const SizedBox(height: 12),
+          ActionChip(
+            avatar: const Icon(Icons.sync_problem_outlined),
+            label: Text(_syncError!),
+            onPressed: _saving ? null : (_retryLoad ? _load : _save),
+          ),
+        ],
         const SizedBox(height: 22),
         Card(
           key: const Key('today-workout-card'),
@@ -203,13 +279,16 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
               children: [
                 const Text('HÔM NAY'),
                 const SizedBox(height: 8),
-                Text(today, style: Theme.of(context).textTheme.headlineLarge),
+                Text(
+                  _todayWorkout,
+                  style: Theme.of(context).textTheme.headlineLarge,
+                ),
                 const Text('45 phút · 4 bài · 12 hiệp'),
               ],
             ),
           ),
         ),
-        if (!legsReady && !_acceptedSuggestion && !_dismissedSuggestion) ...[
+        if (!legsReady && !acceptedSuggestion && !_dismissedSuggestion) ...[
           const SizedBox(height: 12),
           Card(
             color: const Color(0xFFC7F36B),
@@ -237,8 +316,10 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
                         child: const Text('Giữ lịch cũ'),
                       ),
                       FilledButton(
-                        onPressed: () =>
-                            setState(() => _acceptedSuggestion = true),
+                        onPressed: () {
+                          setState(() => _todayWorkout = 'Ngực + Tay sau');
+                          _save();
+                        },
                         child: const Text('Xác nhận đổi'),
                       ),
                     ],
@@ -251,16 +332,12 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
         const SizedBox(height: 24),
         Text('TUẦN NÀY', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
-        for (final session in const [
-          ('Thứ hai', 'Ngực + Tay sau'),
-          ('Thứ tư', 'Lưng + Tay trước'),
-          ('Thứ sáu', 'Chân + Mông'),
-        ])
+        for (final session in _weeklySchedule)
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.calendar_today_outlined),
-            title: Text(session.$2),
-            subtitle: Text(session.$1),
+            title: Text(session.title),
+            subtitle: Text(_dayLabel(session.day)),
             trailing: const Icon(Icons.drag_handle_rounded),
           ),
         const Divider(height: 32),
@@ -276,6 +353,7 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
           divisions: 6,
           label: '${_recoveryHours.round()} giờ',
           onChanged: (value) => setState(() => _recoveryHours = value),
+          onChangeEnd: (_) => _save(),
         ),
         const Text(
           'Đây là quy tắc lập lịch, không phải chẩn đoán y tế. Bạn có thể chỉnh riêng từng nhóm cơ ở phiên bản tiếp theo.',
@@ -283,4 +361,14 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
       ],
     );
   }
+
+  String _dayLabel(int day) => switch (day) {
+    1 => 'Thứ hai',
+    2 => 'Thứ ba',
+    3 => 'Thứ tư',
+    4 => 'Thứ năm',
+    5 => 'Thứ sáu',
+    6 => 'Thứ bảy',
+    _ => 'Chủ nhật',
+  };
 }

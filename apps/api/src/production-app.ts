@@ -23,6 +23,49 @@ export function createProductionApp() {
       return session ? { id: session.user.id } : null;
     },
     workoutWriteAllowed: (userId) => workoutWriteLimiter.consume(userId),
+    plannerWriteAllowed: (userId) => workoutWriteLimiter.consume(`planner:${userId}`),
+    plannerStates: {
+      get: async (userId) => {
+        const result = await database.execute(sql`
+          select
+            planner_states.weekly_schedule as "weeklySchedule",
+            planner_states.recovery_hours as "recoveryHours",
+            planner_states.today_workout as "todayWorkout"
+          from planner_states
+          inner join profiles on profiles.id = planner_states.profile_id
+          where profiles.auth_user_id = ${userId}
+          limit 1
+        `);
+        return (result.rows[0] as {
+          weeklySchedule: Array<{ day: number; title: string }>;
+          recoveryHours: number;
+          todayWorkout: string;
+        } | undefined) ?? null;
+      },
+      upsert: async (userId, state) => {
+        await database.execute(sql`
+          insert into profiles (auth_user_id)
+          values (${userId})
+          on conflict (auth_user_id) do nothing
+        `);
+        const result = await database.execute(sql`
+          insert into planner_states (
+            profile_id, weekly_schedule, recovery_hours, today_workout, updated_at
+          )
+          select id, ${JSON.stringify(state.weeklySchedule)}::jsonb,
+            ${state.recoveryHours}, ${state.todayWorkout}, now()
+          from profiles where auth_user_id = ${userId}
+          on conflict (profile_id) do update set
+            weekly_schedule = excluded.weekly_schedule,
+            recovery_hours = excluded.recovery_hours,
+            today_workout = excluded.today_workout,
+            updated_at = now()
+          returning weekly_schedule as "weeklySchedule",
+            recovery_hours as "recoveryHours", today_workout as "todayWorkout"
+        `);
+        return result.rows[0] as typeof state;
+      },
+    },
     workoutSets: {
       insert: async ({ userId, workoutExerciseId, loadKg, repetitions }) => {
         await database.execute(sql`
