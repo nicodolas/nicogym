@@ -10,7 +10,19 @@ import {
 const repositoryRoot = fileURLToPath(new URL('../../..', import.meta.url));
 
 describe('release configuration', () => {
-  it.each(['', 'http://localhost:3000', 'http://api.example.com', 'not a url'])(
+  it.each([
+    '',
+    'http://localhost:3000',
+    'http://api.example.com',
+    'not a url',
+    'https://foo.localhost',
+    'https://127.0.0.2',
+    'https://10.0.0.1',
+    'https://192.168.1.2',
+    'https://[::1]',
+    'https://[0:0:0:0:0:0:0:1]',
+    'https://api.internal',
+  ])(
     'rejects unsafe production API URL %j',
     (value) => expect(() => assertProductionApiUrl(value)).toThrow(),
   );
@@ -56,9 +68,24 @@ describe('release configuration', () => {
     const netlify = await readFile(`${repositoryRoot}/netlify.toml`, 'utf8');
 
     expect(buildScript).toContain('--pwa-strategy=none');
+    expect(buildScript).toContain('validate-release-config.mjs');
     expect(buildScript).toContain('BASE_APP_VERSION');
     expect(netlify).toContain('for = "/flutter_bootstrap.js"');
     expect(netlify).toContain('for = "/main.dart.js"');
   });
-});
 
+  it('waits for scoped best-effort legacy cache cleanup before Flutter', async () => {
+    const cleanup = await readFile(
+      `${repositoryRoot}/apps/client/web/cache_cleanup.js`,
+      'utf8',
+    );
+    const loader = await readFile(
+      `${repositoryRoot}/apps/client/web/load_flutter.js`,
+      'utf8',
+    );
+    expect(cleanup).toContain("endsWith('/flutter_service_worker.js')");
+    expect(cleanup).toContain('Promise.allSettled');
+    expect(loader).toContain('nicogymLegacyCacheCleanup');
+    expect(loader).toContain("bootstrap.src = 'flutter_bootstrap.js'");
+  });
+});

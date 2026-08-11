@@ -13,6 +13,7 @@ fi
 
 "${flutter_root}/bin/flutter" config --enable-web
 "${flutter_root}/bin/flutter" pub get
+node ../../scripts/validate-release-config.mjs
 "${flutter_root}/bin/flutter" build web \
   --release \
   --no-web-resources-cdn \

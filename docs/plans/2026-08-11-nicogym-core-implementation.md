@@ -119,9 +119,9 @@
 - Modify: `apps/api/src/app.ts` and `production-app.ts`
 - Add: planner integration tests
 
-1. Write failing tests for weekly schedule CRUD, stable exercise slugs, completion history, per-muscle recovery settings, local date/offset persistence, and missed-session behavior.
+1. Write failing tests for weekly schedule CRUD, stable exercise slugs, idempotent completion IDs, per-muscle recovery settings, request-scoped local date/IANA time zone, travel/DST boundaries, and missed-session behavior.
 2. Implement repositories and authenticated endpoints.
-3. Preserve schedule entries when a day is missed; store today's accepted override separately.
+3. Preserve schedule entries when a day is missed; atomically upsert keep/change decisions under a unique `(profile_id, local_date)` key and make concurrent/retried confirmations idempotent.
 4. Run focused and full API verification.
 5. Commit.
 
@@ -132,7 +132,7 @@
 - Modify/add: recommendation route/service
 - Expand: `apps/api/test/recommend-workout.test.ts`
 
-1. Add failing cases for no history/default disclosure, ready scheduled workout, unrecovered scheduled workout, no alternative, stable tie-breaking, rest/remaining-hour reasons, and local-date boundaries.
+1. Add failing cases for no history/default disclosure, ready scheduled workout, unrecovered scheduled workout, no alternative, stable tie-breaking, rest/remaining-hour reasons, multi-device travel, IANA-zone DST boundaries, concurrent confirmation, and successful-commit retries.
 2. Implement schedule-first evaluation and one fully recovered alternative.
 3. Return explicit keep/change actions and explanation fields; never shift the future schedule.
 4. Run focused property/edge tests and full API suite.
@@ -147,7 +147,7 @@
 - Add: local placeholders/assets
 - Add/modify: Flutter tests
 
-1. Write failing repository and widget tests for database data, bundled fallback, slug identity, loading/error/offline states, image fallback, instructional sections, and desktop clicks.
+1. Write failing repository and widget tests for database data, bundled fallback, slug identity, per-user cache ownership, logout/session-expiry/account-switch invalidation, loading/error/offline states, image fallback, instructional sections, and desktop clicks.
 2. Implement cache-first catalog sync and full logged-in body-region list.
 3. Build responsive exercise detail with muscle illustration/image, instructions, cues, mistakes, and inline approved YouTube embed with an accessible external fallback.
 4. Verify Android-sized and desktop viewports and run visual-verdict.
@@ -195,4 +195,3 @@
 4. Apply additive Neon migrations using a non-pooled `DIRECT_URL`; verify schema and health endpoints without printing credentials.
 5. Run API typecheck/tests, Flutter analyze/tests, production web build, APK/Shorebird dry validation where supported, and secret scan.
 6. Open/update PR B and complete current-head CI/Cubic review loop. Record all AI review dispositions and leave the PR open.
-
