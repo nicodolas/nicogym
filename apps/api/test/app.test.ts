@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { createApp } from "../src/app.js";
 
-const authenticatedUser = { id: "user-1" };
+const authenticatedUser = { id: "user-1", role: "user" as const };
+const adminUser = { id: "admin-1", role: "admin" as const };
 const workoutExerciseId = "d4d68f8b-4aa3-4cb0-a077-3dfd51e6d95f";
 
 describe("API", () => {
@@ -75,6 +76,135 @@ describe("API", () => {
   it("requires authentication to read the planner", async () => {
     const response = await createApp().request("/api/planner");
     expect(response.status).toBe(401);
+  });
+
+  it("returns the exercise catalog to an authenticated member", async () => {
+    const exercises = [{ slug: "leg-press", name: "Leg press" }];
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      exerciseCatalog: {
+        list: async () => exercises,
+        previewImport: async () => ({ token: "unused", summary: { creates: 0, updates: 0 } }),
+        applyImport: async () => ({ created: 0, updated: 0 }),
+      },
+    }).request("/api/exercises");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: exercises });
+  });
+
+  it("returns only the persisted application role for the current member", async () => {
+    const response = await createApp({ currentUser: async () => adminUser }).request("/api/me");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { id: "admin-1", role: "admin" } });
+  });
+
+  it("does not trust a normal member with exercise imports", async () => {
+    const response = await createApp({ currentUser: async () => authenticatedUser }).request(
+      "/api/admin/exercises/import/preview",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "create", exercises: [] }),
+      },
+    );
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "admin_required" });
+  });
+
+  it("previews and applies a bounded admin JSON import", async () => {
+    const calls: unknown[] = [];
+    const exerciseCatalog = {
+      list: async () => [],
+      previewImport: async (value: unknown) => {
+        calls.push(value);
+        return { token: "signed-preview-token", summary: { creates: 1, updates: 0 } };
+      },
+      applyImport: async (token: string) => {
+        calls.push(token);
+        return { created: 1, updated: 0 };
+      },
+    };
+    const exercise = {
+      slug: "goblet-squat",
+      name: "Goblet squat",
+      category: "Chân & Mông",
+      equipment: "Tạ đơn",
+      prescription: "3 × 8–12",
+      primaryMuscles: ["Đùi trước", "Mông"],
+      summary: "Squat với một tạ trước ngực.",
+      setup: ["Giữ tạ sát ngực."],
+      steps: ["Hạ hông có kiểm soát."],
+      cues: ["Giữ cả bàn chân trên sàn."],
+      mistakes: ["Đầu gối đổ vào trong."],
+      safety: "Dừng nếu đau nhói.",
+      sourceLabel: "NicoGym",
+      sourceUrl: "https://example.com/source",
+      videoUrl: "https://www.youtube.com/watch?v=test1234567",
+      imageUrl: "https://example.com/goblet-squat.jpg",
+    };
+    const app = createApp({ currentUser: async () => adminUser, exerciseCatalog });
+    const preview = await app.request("/api/admin/exercises/import/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mode: "create", exercises: [exercise] }),
+    });
+    expect(preview.status).toBe(200);
+    expect(await preview.json()).toEqual({
+      data: { token: "signed-preview-token", summary: { creates: 1, updates: 0 } },
+    });
+
+    const apply = await app.request("/api/admin/exercises/import/apply", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ previewToken: "signed-preview-token" }),
+    });
+    expect(apply.status).toBe(200);
+    expect(await apply.json()).toEqual({ data: { created: 1, updated: 0 } });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("rejects duplicate slugs and imports over 100 exercises", async () => {
+    const exercise = {
+      slug: "leg-press",
+      name: "Leg press",
+      category: "Chân & Mông",
+      equipment: "Máy",
+      prescription: "3 × 10",
+      primaryMuscles: ["Đùi trước"],
+      summary: "Tóm tắt đủ dài.",
+      setup: ["Chuẩn bị."],
+      steps: ["Thực hiện."],
+      cues: ["Gợi ý."],
+      mistakes: ["Lỗi."],
+      safety: "An toàn.",
+      sourceLabel: "NicoGym",
+      sourceUrl: "https://example.com",
+      videoUrl: "https://youtube.com/watch?v=abcdefghijk",
+    };
+    const app = createApp({ currentUser: async () => adminUser });
+    for (const exercises of [[exercise, exercise], Array.from({ length: 101 }, (_, index) => ({ ...exercise, slug: `exercise-${index}` }))]) {
+      const response = await app.request("/api/admin/exercises/import/preview", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "create", exercises }),
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: "invalid_exercise_import" });
+    }
+  });
+
+  it("rejects exercise preview documents over 512 KB", async () => {
+    const response = await createApp({ currentUser: async () => adminUser }).request(
+      "/api/admin/exercises/import/preview",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ padding: "x".repeat(513 * 1024) }),
+      },
+    );
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: "payload_too_large" });
   });
 
   it("returns the authenticated member planner", async () => {

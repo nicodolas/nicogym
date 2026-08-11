@@ -5,6 +5,7 @@ import {
   index,
   jsonb,
   pgTable,
+  pgEnum,
   primaryKey,
   text,
   timestamp,
@@ -13,6 +14,8 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth-schema.js";
+
+export const profileRole = pgEnum("profile_role", ["user", "admin"]);
 
 export const profiles = pgTable(
   "profiles",
@@ -24,6 +27,7 @@ export const profiles = pgTable(
     displayName: text("display_name"),
     goal: text("goal").notNull().default("muscle_and_strength"),
     experienceLevel: text("experience_level").notNull().default("beginner"),
+    role: profileRole("role").notNull().default("user"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -44,7 +48,25 @@ export const exercises = pgTable("exercises", {
   commonMistakes: jsonb("common_mistakes").$type<string[]>().notNull(),
   videoUrl: text("video_url"),
   reviewed: boolean("reviewed").notNull().default(false),
+  content: jsonb("content").$type<Record<string, unknown>>().notNull().default({}),
+  archived: boolean("archived").notNull().default(false),
+  schemaVersion: integer("schema_version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const adminAuditEvents = pgTable(
+  "admin_audit_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    actorAuthUserId: text("actor_auth_user_id").notNull().references(() => user.id),
+    action: text("action").notNull(),
+    target: text("target").notNull(),
+    details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("admin_audit_actor_created_idx").on(table.actorAuthUserId, table.createdAt)],
+);
 
 export const exerciseMuscles = pgTable(
   "exercise_muscles",
