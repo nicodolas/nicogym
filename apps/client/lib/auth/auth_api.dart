@@ -107,13 +107,14 @@ class AuthApi {
   }) async {
     http.Response response;
     try {
-      response = await _client
-          .post(
-            baseUrl.resolve(path),
-            headers: const {'content-type': 'application/json'},
-            body: jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 12));
+      final request = _client.post(
+        baseUrl.resolve(path),
+        headers: const {'content-type': 'application/json'},
+        body: jsonEncode(body),
+      );
+      response = registering
+          ? await request
+          : await request.timeout(const Duration(seconds: 12));
     } on TimeoutException {
       throw const AuthException('Máy chủ phản hồi quá chậm. Hãy thử lại.');
     } on http.ClientException {

@@ -101,11 +101,14 @@ class _AuthScreenState extends State<AuthScreen> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 18, 20, 108),
                   children: [
-                    Container(
-                      width: 52,
-                      height: 7,
-                      margin: const EdgeInsets.only(bottom: 22),
-                      color: _authLime,
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        width: 52,
+                        height: 7,
+                        margin: const EdgeInsets.only(bottom: 22),
+                        color: _authLime,
+                      ),
                     ),
                     Text(
                       _registering ? 'TẠO TÀI KHOẢN' : 'ĐĂNG NHẬP',
@@ -248,9 +251,14 @@ class _AuthScreenState extends State<AuthScreen> {
                                 labelText: 'Nhập lại mật khẩu',
                                 prefixIcon: Icon(Icons.verified_user_outlined),
                               ),
-                              validator: (value) => value != _password.text
-                                  ? 'Hai mật khẩu chưa trùng nhau.'
-                                  : null,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Nhập lại mật khẩu.';
+                                }
+                                return value != _password.text
+                                    ? 'Hai mật khẩu chưa trùng nhau.'
+                                    : null;
+                              },
                             ),
                           ],
                           if (_error case final error?) ...[
@@ -284,21 +292,6 @@ class _AuthScreenState extends State<AuthScreen> {
                           ],
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.lock_rounded, size: 15, color: _authMuted),
-                        SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            'Thông tin đăng nhập được truyền qua kết nối HTTPS.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: _authMuted, fontSize: 12),
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),

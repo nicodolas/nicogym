@@ -29,6 +29,29 @@ Widget _app(http.Client client) => MaterialApp(
 );
 
 void main() {
+  testWidgets('registration distinguishes an empty password confirmation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(MockClient((_) async => http.Response('{}', 500))),
+    );
+    await tester.tap(find.text('Tạo tài khoản'));
+    await tester.pump();
+    await tester.enterText(find.byKey(const Key('auth-name')), 'Nico');
+    await tester.enterText(
+      find.byKey(const Key('auth-email')),
+      'nico@example.com',
+    );
+    await tester.enterText(
+      find.byKey(const Key('auth-password')),
+      'long-enough-password',
+    );
+    await tester.tap(find.text('Đăng ký'));
+    await tester.pump();
+
+    expect(find.text('Nhập lại mật khẩu.'), findsOneWidget);
+  });
+
   testWidgets('registration blocks passwords shorter than server minimum', (
     tester,
   ) async {
