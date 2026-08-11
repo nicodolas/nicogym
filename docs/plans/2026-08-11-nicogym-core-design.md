@@ -14,9 +14,9 @@ This delivery is split into two independently reviewable releases:
 - Initial scale is below 1,000 users and should remain viable on Neon, Vercel, Netlify, GitHub Actions, and Shorebird free tiers.
 - PostgreSQL/Neon remains the system of record. Better Auth remains the identity provider.
 - Recommendations are deterministic and explainable; no AI dependency is required for the MVP.
-- The client may cache exercise data and recent planning state for cold starts and intermittent connectivity.
+- Exercise and planning caches are keyed by immutable auth user ID. Logout, session expiry, and account changes clear the active cache; tests prove user A data is never visible to user B.
 - Admin access is derived only from a persisted database role, never an email allow-list, environment claim, or client-side flag.
-- Exercise images initially use arbitrary HTTPS URLs. The server never fetches these URLs; the client shows a safe fallback on failure. This is an explicit MVP privacy and availability tradeoff.
+- Exercise images initially use arbitrary HTTPS URLs. The server never fetches them; the client shows a fallback and documents that the remote host can observe the viewer's IP. YouTube playback accepts validated 11-character video IDs only. This is an explicit user-approved MVP tradeoff, so `img-src https:` is broader while fonts, API connections, and frames remain allowlisted.
 - Exercise slugs are immutable identities and remain reserved after archival.
 - OTA patches may change Dart code but do not redefine the installed base APK version. The UI therefore shows the requested compact base label only: `v1.1.1+5`.
 
@@ -56,20 +56,21 @@ Chosen. Neon stores canonical users, roles, exercises, schedule, history, prefer
 - Canonical exercise records contain immutable slug, localized name, body region, primary and secondary muscles, equipment, difficulty, instructions, cues, common mistakes, media URLs, default set/rep guidance, schema version, timestamps, and archive status.
 - Both bundled fallback JSON and database records use the same slugs and schema version.
 - Admin form supports individual create/edit/archive.
-- Bulk JSON uses preview then apply. Preview validates the entire document and returns a short-lived token bound to normalized content and catalog revision. Apply rejects stale previews.
+- Bulk JSON uses preview then apply. Preview returns a short-lived token bound to normalized content and catalog revision. Apply atomically checks the revision, consumes the preview through the catalog mutation, and writes one audit event; concurrent replay can commit at most once.
 - Limits: 512 KB body, 100 exercises, bounded strings/arrays, duplicate slug rejection, explicit create/update mode, optimistic `updatedAt`, and all-or-nothing transaction.
 
 ### Planner and recommendation
 
 - Users define weekly planned sessions and per-muscle recovery preferences.
 - Completed sessions and sets form the actual history; missed sessions do not silently shift the plan.
-- The request includes the user's local date and UTC offset; the backend remembers the latest offset.
+- Every recommendation request carries its local date and IANA time-zone ID. The request context, not a user-wide last offset, controls travel and DST day boundaries.
 - The scheduled workout is always evaluated first.
 - With no history, the UI states that defaults are being used and does not imply measured recovery.
 - If scheduled muscles are recovered, recommend keeping the schedule.
 - Otherwise offer one fully recovered alternative ranked by longest rest and then stable slug.
 - The response includes plain reasons: time rested, time remaining, missed-session context, and whether the schedule remains unchanged.
-- The user explicitly chooses “Giữ lịch hôm nay” or “Đổi sang …”; changing updates today's effective session only after confirmation.
+- The user explicitly chooses “Giữ lịch hôm nay” or “Đổi sang …”. Both actions atomically upsert an idempotent daily decision keyed by `(profile_id, local_date)`; concurrent or retried confirmations produce one result and never shift the weekly schedule.
+- Completed sessions and sets have client-generated stable IDs with database uniqueness. Duplicate or concurrent retries return the existing record instead of adding volume twice.
 
 ### Contextual help and UX
 
@@ -107,4 +108,3 @@ Chosen. Neon stores canonical users, roles, exercises, schedule, history, prefer
 - Accepted: recommendation copy distinguishes recovery defaults from observed history and explains missed sessions.
 - Accepted: warm-path latency targets are aspirational; cached UI handles free-tier cold starts.
 - Accepted: contextual help remains concise and centralized to reduce stale duplicate content.
-
