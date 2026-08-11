@@ -4,6 +4,8 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { z } from "zod";
 
+import { exerciseImportSchema, importApplySchema, type ExerciseImport } from "./catalog/exercise-schema.js";
+
 const workoutSetSchema = z.object({
   workoutExerciseId: z.string().uuid(),
   loadKg: z.number().min(0),
@@ -27,6 +29,7 @@ type PlannerState = z.infer<typeof plannerStateSchema>;
 
 interface CurrentUser {
   id: string;
+  role: "user" | "admin";
 }
 
 interface WorkoutSetInsert {
@@ -47,6 +50,17 @@ export interface AppDependencies {
     upsert: (userId: string, state: PlannerState) => Promise<PlannerState>;
   };
   plannerWriteAllowed?: (userId: string) => boolean | Promise<boolean>;
+  exerciseCatalog?: {
+    list: (userId: string) => Promise<unknown[]>;
+    previewImport: (value: ExerciseImport, adminUserId: string) => Promise<{
+      token: string;
+      summary: { creates: number; updates: number };
+    }>;
+    applyImport: (token: string, adminUserId: string) => Promise<{
+      created: number;
+      updated: number;
+    }>;
+  };
 }
 
 export function createApp(dependencies: AppDependencies = {}) {
@@ -75,10 +89,20 @@ export function createApp(dependencies: AppDependencies = {}) {
     }),
   );
 
+  for (const path of ["/api/planner", "/api/workout-sets"]) {
+    app.use(
+      path,
+      bodyLimit({
+        maxSize: 32 * 1024,
+        onError: (context) => context.json({ error: "payload_too_large" }, 413),
+      }),
+    );
+  }
+
   app.use(
     "/api/*",
     bodyLimit({
-      maxSize: 32 * 1024,
+      maxSize: 512 * 1024,
       onError: (context) => context.json({ error: "payload_too_large" }, 413),
     }),
   );
@@ -102,6 +126,59 @@ export function createApp(dependencies: AppDependencies = {}) {
       dependencies.authHandler!(context.req.raw),
     );
   }
+
+  app.get("/api/exercises", async (context) => {
+    const user = await (dependencies.currentUser?.(context.req.raw.headers) ?? Promise.resolve(null));
+    if (!user) return context.json({ error: "unauthorized" }, 401);
+    if (!dependencies.exerciseCatalog) return context.json({ error: "service_unavailable" }, 503);
+    return context.json({ data: await dependencies.exerciseCatalog.list(user.id) });
+  });
+
+  app.get("/api/me", async (context) => {
+    const user = await (dependencies.currentUser?.(context.req.raw.headers) ?? Promise.resolve(null));
+    if (!user) return context.json({ error: "unauthorized" }, 401);
+    return context.json({ data: user });
+  });
+
+  app.post("/api/admin/exercises/import/preview", async (context) => {
+    if (!context.req.header("content-type")?.toLowerCase().startsWith("application/json")) {
+      return context.json({ error: "unsupported_media_type" }, 415);
+    }
+    const user = await (dependencies.currentUser?.(context.req.raw.headers) ?? Promise.resolve(null));
+    if (!user) return context.json({ error: "unauthorized" }, 401);
+    if (user.role !== "admin") return context.json({ error: "admin_required" }, 403);
+    const body = await readJson(context.req.raw);
+    const parsed = exerciseImportSchema.safeParse(body);
+    if (!parsed.success) {
+      return context.json({
+        error: "invalid_exercise_import",
+        issues: parsed.error.issues.map((issue) => ({ path: issue.path, code: issue.message })),
+      }, 400);
+    }
+    if (!dependencies.exerciseCatalog) return context.json({ error: "service_unavailable" }, 503);
+    try {
+      return context.json({ data: await dependencies.exerciseCatalog.previewImport(parsed.data, user.id) });
+    } catch (error) {
+      return context.json({ error: errorCode(error) }, 409);
+    }
+  });
+
+  app.post("/api/admin/exercises/import/apply", async (context) => {
+    if (!context.req.header("content-type")?.toLowerCase().startsWith("application/json")) {
+      return context.json({ error: "unsupported_media_type" }, 415);
+    }
+    const user = await (dependencies.currentUser?.(context.req.raw.headers) ?? Promise.resolve(null));
+    if (!user) return context.json({ error: "unauthorized" }, 401);
+    if (user.role !== "admin") return context.json({ error: "admin_required" }, 403);
+    const parsed = importApplySchema.safeParse(await readJson(context.req.raw));
+    if (!parsed.success) return context.json({ error: "invalid_preview_token" }, 400);
+    if (!dependencies.exerciseCatalog) return context.json({ error: "service_unavailable" }, 503);
+    try {
+      return context.json({ data: await dependencies.exerciseCatalog.applyImport(parsed.data.previewToken, user.id) });
+    } catch (error) {
+      return context.json({ error: errorCode(error) }, 409);
+    }
+  });
 
   app.get("/api/planner", async (context) => {
     const user = await (dependencies.currentUser?.(context.req.raw.headers) ?? Promise.resolve(null));
@@ -179,6 +256,19 @@ export function createApp(dependencies: AppDependencies = {}) {
   });
 
   return app;
+}
+
+async function readJson(request: Request): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
+    return undefined;
+  }
+}
+
+function errorCode(error: unknown): string {
+  if (error instanceof Error && /^[a-z_]+$/.test(error.message)) return error.message;
+  return "catalog_conflict";
 }
 
 type VercelHandler = (request: Request) => Response | Promise<Response>;

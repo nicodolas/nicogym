@@ -28,7 +28,10 @@ describe("recommendWorkout", () => {
       scheduledWorkoutId: "legs",
       suggestedWorkoutId: "push",
       requiresConfirmation: true,
-      reasons: ["quadriceps needs about 24 more hours of recovery"],
+      reasons: [
+        "quadriceps còn khoảng 24 giờ phục hồi",
+        "chest đã nghỉ 72 giờ",
+      ],
     });
   });
 
@@ -43,5 +46,37 @@ describe("recommendWorkout", () => {
     });
 
     expect(result.kind).toBe("keep");
+  });
+
+  it("discloses default recovery data when no training history exists", () => {
+    const result = recommendWorkout({
+      scheduled: { id: "legs", muscleGroups: ["quadriceps"] },
+      alternatives: [{ id: "push", muscleGroups: ["chest"] }],
+      recovery: {},
+    });
+
+    expect(result).toMatchObject({ kind: "keep", usedRecoveryDefaults: true });
+    expect(result.reasons).toContain("Chưa có lịch sử tập, tạm dùng mặc định");
+  });
+
+  it("ranks fully recovered alternatives by longest rest and stable id", () => {
+    const result = recommendWorkout({
+      scheduled: { id: "legs", muscleGroups: ["quadriceps"] },
+      alternatives: [
+        { id: "pull", muscleGroups: ["back"] },
+        { id: "arms", muscleGroups: ["biceps"] },
+        { id: "push", muscleGroups: ["chest"] },
+      ],
+      recovery: {
+        quadriceps: { hoursSinceTraining: 12, minimumHours: 48 },
+        back: { hoursSinceTraining: 72, minimumHours: 48 },
+        biceps: { hoursSinceTraining: 96, minimumHours: 48 },
+        chest: { hoursSinceTraining: 96, minimumHours: 48 },
+      },
+    });
+
+    expect(result).toMatchObject({ kind: "suggest", suggestedWorkoutId: "arms" });
+    expect(result.reasons).toContain("quadriceps còn khoảng 36 giờ phục hồi");
+    expect(result.reasons).toContain("biceps đã nghỉ 96 giờ");
   });
 });

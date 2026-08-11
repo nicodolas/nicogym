@@ -21,10 +21,11 @@ class Exercise {
     this.category = 'Khác',
     this.videoId,
     this.imageAsset,
+    this.imageUrl,
   });
 
   factory Exercise.fromJson(Map<String, dynamic> json) => Exercise(
-    id: json['id'] as String,
+    id: (json['slug'] ?? json['id']) as String,
     name: json['name'] as String,
     prescription: json['prescription'] as String,
     primaryMuscles: List<String>.from(json['primaryMuscles'] as List),
@@ -36,11 +37,12 @@ class Exercise {
     mistakes: List<String>.from(json['mistakes'] as List),
     safety: json['safety'] as String,
     sourceLabel: json['sourceLabel'] as String,
-    sourceUrl: json['sourceUrl'] as String,
-    videoUrl: json['videoUrl'] as String,
+    sourceUrl: json['sourceUrl'] as String? ?? '',
+    videoUrl: json['videoUrl'] as String? ?? '',
     category: json['category'] as String? ?? 'Khác',
     videoId: json['videoId'] as String?,
     imageAsset: json['imageAsset'] as String?,
+    imageUrl: json['imageUrl'] as String?,
   );
 
   final String id;
@@ -60,6 +62,7 @@ class Exercise {
   final String category;
   final String? videoId;
   final String? imageAsset;
+  final String? imageUrl;
 }
 
 class ExerciseLibrary {

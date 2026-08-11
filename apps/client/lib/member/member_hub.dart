@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:nicogym/admin/catalog_admin_screen.dart';
+import 'package:nicogym/admin/catalog_api.dart';
+import 'package:nicogym/help/context_help.dart';
 import 'package:nicogym/member/planner_api.dart';
 import 'package:nicogym/workouts/exercise.dart';
 
@@ -9,12 +12,14 @@ class MemberHubScreen extends StatefulWidget {
     required this.onOpenExercise,
     this.initialTab = 0,
     this.plannerRepository,
+    this.catalogRepository,
   });
 
   final Future<List<Exercise>> Function() exerciseLoader;
   final ValueChanged<Exercise> onOpenExercise;
   final int initialTab;
   final PlannerRepository? plannerRepository;
+  final CatalogRepository? catalogRepository;
 
   @override
   State<MemberHubScreen> createState() => _MemberHubScreenState();
@@ -22,10 +27,37 @@ class MemberHubScreen extends StatefulWidget {
 
 class _MemberHubScreenState extends State<MemberHubScreen> {
   late int _tab = widget.initialTab;
+  bool _isAdmin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    try {
+      final identity = await widget.catalogRepository?.me();
+      if (mounted && identity != null) {
+        setState(() => _isAdmin = identity.isAdmin);
+      }
+    } catch (_) {
+      // Catalog and planner remain usable when role lookup is temporarily offline.
+    }
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('KHÔNG GIAN CỦA BẠN')),
+    appBar: AppBar(
+      title: const Text('KHÔNG GIAN CỦA BẠN'),
+      actions: const [
+        ContextHelpButton(
+          title: 'Không gian của bạn',
+          message:
+              'Mở Thư viện để xem đúng kỹ thuật. Mở Lịch & gợi ý để xếp buổi tập; lịch đã xếp luôn được ưu tiên và mọi thay đổi đều cần xác nhận.',
+        ),
+      ],
+    ),
     body: IndexedStack(
       index: _tab,
       children: [
@@ -34,20 +66,27 @@ class _MemberHubScreenState extends State<MemberHubScreen> {
           onOpen: widget.onOpenExercise,
         ),
         _SchedulePlanner(repository: widget.plannerRepository),
+        if (_isAdmin && widget.catalogRepository != null)
+          CatalogAdminScreen(repository: widget.catalogRepository!),
       ],
     ),
     bottomNavigationBar: NavigationBar(
       selectedIndex: _tab,
       onDestinationSelected: (value) => setState(() => _tab = value),
-      destinations: const [
-        NavigationDestination(
+      destinations: [
+        const NavigationDestination(
           icon: Icon(Icons.grid_view_rounded),
           label: 'Thư viện',
         ),
-        NavigationDestination(
+        const NavigationDestination(
           icon: Icon(Icons.calendar_month_outlined),
           label: 'Lịch & gợi ý',
         ),
+        if (_isAdmin)
+          const NavigationDestination(
+            icon: Icon(Icons.admin_panel_settings_outlined),
+            label: 'Quản trị',
+          ),
       ],
     ),
   );
@@ -323,14 +362,14 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('GỢI Ý THEO PHỤC HỒI'),
+                  const Text('GỢI Ý THEO CẤU HÌNH'),
                   const SizedBox(height: 8),
                   Text(
                     'Đổi sang $alternativeWorkout?',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   Text(
-                    'Nhóm cơ của $_todayWorkout mới nghỉ $elapsedRecoveryHours giờ, còn khoảng ${(_recoveryHours - elapsedRecoveryHours).round()} giờ theo cấu hình. Bạn có thể đổi sang $alternativeWorkout để tập tiếp hôm nay.',
+                    'Chưa có lịch sử tập, tạm dùng mặc định. Nhóm cơ của $_todayWorkout được ước tính mới nghỉ $elapsedRecoveryHours giờ, còn khoảng ${(_recoveryHours - elapsedRecoveryHours).round()} giờ theo cấu hình. Lịch tuần không tự dịch chuyển.',
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -340,7 +379,7 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
                         onPressed: _loading
                             ? null
                             : () => setState(() => _dismissedSuggestion = true),
-                        child: const Text('Giữ lịch cũ'),
+                        child: const Text('Giữ lịch hôm nay'),
                       ),
                       FilledButton(
                         onPressed: _loading
@@ -352,7 +391,7 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
                                 });
                                 _save();
                               },
-                        child: const Text('Xác nhận đổi'),
+                        child: Text('Đổi sang $alternativeWorkout'),
                       ),
                     ],
                   ),

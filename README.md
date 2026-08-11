@@ -117,6 +117,33 @@ npm run db:migrate --workspace @nicogym/api
 
 The migration command intentionally refuses to fall back to a pooled Neon URL.
 
+### Grant the first administrator
+
+Create the account through NicoGym first, then grant its persisted application
+role with the non-pooled Neon connection. The command never accepts a password
+and fails unless exactly one existing Better Auth user matches the email.
+
+```bash
+DIRECT_URL="postgresql://..." ADMIN_EMAIL="admin@example.com" npm --workspace apps/api run admin:grant
+```
+
+Run this locally only. Do not add `ADMIN_EMAIL`, credentials, or an admin
+allow-list to Vercel/Netlify. Admin API routes always read `profiles.role` from
+PostgreSQL and write an audit event.
+
+The in-app admin screen supports one-exercise templates and bulk JSON imports.
+Every import is validated (HTTPS media, bounded fields, at most 100 records and
+512 KB), previewed with a short-lived signed token, and then applied in one
+transaction. External image URLs are fetched by the user's client, not the API;
+use trusted HTTPS hosts because they can observe the viewer's IP address.
+
+Seed or refresh the canonical catalog from the reviewed offline fallback after
+the migration:
+
+```bash
+DIRECT_URL="postgresql://..." npm --workspace apps/api run catalog:seed
+```
+
 ## Quality checks
 
 From the repository root:

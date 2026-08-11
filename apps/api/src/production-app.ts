@@ -1,10 +1,12 @@
 import { sql } from "drizzle-orm";
+import { neon } from "@neondatabase/serverless";
 
 import { createApp } from "./app.js";
 import { auth } from "./auth.js";
 import { createDatabase } from "./db/client.js";
 import { readEnvironment } from "./env.js";
 import { createFixedWindowRateLimiter } from "./rate-limit.js";
+import { signImportPreview, verifyImportPreview } from "./catalog/import-token.js";
 
 const workoutWriteLimiter = createFixedWindowRateLimiter({
   limit: 60,
@@ -20,7 +22,118 @@ export function createProductionApp() {
     authHandler: (request) => auth.handler(request),
     currentUser: async (headers) => {
       const session = await auth.api.getSession({ headers });
-      return session ? { id: session.user.id } : null;
+      if (!session) return null;
+      const result = await database.execute(sql`
+        insert into profiles (auth_user_id)
+        values (${session.user.id})
+        on conflict (auth_user_id) do update set updated_at = profiles.updated_at
+        returning role
+      `);
+      return { id: session.user.id, role: result.rows[0]?.role === "admin" ? "admin" : "user" };
+    },
+    exerciseCatalog: {
+      list: async () => {
+        const result = await database.execute(sql`
+          select content || jsonb_build_object(
+            'id', slug,
+            'slug', slug,
+            'name', name,
+            'equipment', equipment,
+            'videoUrl', video_url,
+            'updatedAt', updated_at,
+            'schemaVersion', schema_version
+          ) as exercise
+          from exercises
+          where archived = false
+          order by content->>'category', name, slug
+        `);
+        return result.rows.map((row) => row.exercise);
+      },
+      previewImport: async (value, adminUserId) => {
+        const revision = await catalogRevision(database);
+        const slugs = value.exercises.map((exercise) => exercise.slug);
+        const existing = await database.execute(sql`
+          select slug, updated_at as "updatedAt"
+          from exercises
+          where slug = any(${slugs}::text[])
+        `);
+        const bySlug = new Map(existing.rows.map((row) => [String(row.slug), row.updatedAt]));
+        if (value.mode === "create" && bySlug.size > 0) throw new Error("exercise_already_exists");
+        if (value.mode === "update" && bySlug.size !== value.exercises.length) throw new Error("exercise_not_found");
+        for (const exercise of value.exercises) {
+          const current = bySlug.get(exercise.slug);
+          if (exercise.expectedUpdatedAt && current && new Date(String(current)).toISOString() !== exercise.expectedUpdatedAt) {
+            throw new Error("stale_exercise_version");
+          }
+        }
+        return {
+          token: signImportPreview({
+            ...value,
+            adminUserId,
+            catalogRevision: revision,
+            expiresAt: Date.now() + 10 * 60_000,
+          }, environment.BETTER_AUTH_SECRET),
+          summary: {
+            creates: value.exercises.filter((exercise) => !bySlug.has(exercise.slug)).length,
+            updates: value.exercises.filter((exercise) => bySlug.has(exercise.slug)).length,
+          },
+        };
+      },
+      applyImport: async (token, adminUserId) => {
+        const preview = verifyImportPreview(token, environment.BETTER_AUTH_SECRET);
+        if (preview.adminUserId !== adminUserId) throw new Error("preview_owner_mismatch");
+        if (await catalogRevision(database) !== preview.catalogRevision) throw new Error("stale_catalog_preview");
+        const existing = await database.execute(sql`
+          select slug from exercises where slug = any(${preview.exercises.map((exercise) => exercise.slug)}::text[])
+        `);
+        const existingSlugs = new Set(existing.rows.map((row) => String(row.slug)));
+        const created = preview.exercises.filter((exercise) => !existingSlugs.has(exercise.slug)).length;
+        const updated = preview.exercises.length - created;
+        const httpSql = neon(environment.DATABASE_URL);
+        try {
+          await httpSql.transaction((transaction) => [
+            transaction`
+              select 1 / case when (
+                select count(*)::text || ':' || coalesce(max(updated_at)::text, 'none') from exercises
+              ) = ${preview.catalogRevision} then 1 else 0 end
+            `,
+            ...preview.exercises.map((exercise) => preview.mode === "create"
+              ? transaction`
+                  insert into exercises (slug, name, equipment, instructions, common_mistakes, video_url, reviewed, content)
+                  values (${exercise.slug}, ${exercise.name}, ${exercise.equipment}, ${JSON.stringify(exercise.steps)}::jsonb,
+                    ${JSON.stringify(exercise.mistakes)}::jsonb, ${exercise.videoUrl ?? null}, true, ${JSON.stringify(exercise)}::jsonb)
+                `
+              : preview.mode === "update"
+                ? transaction`
+                    update exercises set name = ${exercise.name}, equipment = ${exercise.equipment},
+                      instructions = ${JSON.stringify(exercise.steps)}::jsonb,
+                      common_mistakes = ${JSON.stringify(exercise.mistakes)}::jsonb,
+                      video_url = ${exercise.videoUrl ?? null}, reviewed = true,
+                      content = ${JSON.stringify(exercise)}::jsonb, archived = false, updated_at = now()
+                    where slug = ${exercise.slug}
+                  `
+                : transaction`
+                    insert into exercises (slug, name, equipment, instructions, common_mistakes, video_url, reviewed, content)
+                    values (${exercise.slug}, ${exercise.name}, ${exercise.equipment}, ${JSON.stringify(exercise.steps)}::jsonb,
+                      ${JSON.stringify(exercise.mistakes)}::jsonb, ${exercise.videoUrl ?? null}, true, ${JSON.stringify(exercise)}::jsonb)
+                    on conflict (slug) do update set name = excluded.name, equipment = excluded.equipment,
+                      instructions = excluded.instructions, common_mistakes = excluded.common_mistakes,
+                      video_url = excluded.video_url, reviewed = true, content = excluded.content,
+                      archived = false, updated_at = now()
+                  `),
+            transaction`
+              insert into admin_audit_events (actor_auth_user_id, action, target, details)
+              values (${adminUserId}, 'exercise_import', 'exercise_catalog', ${JSON.stringify({ created, updated })}::jsonb)
+            `,
+          ], { isolationLevel: "Serializable" });
+        } catch (error) {
+          if (error instanceof Error && error.message.includes("division by zero")) {
+            throw new Error("stale_catalog_preview");
+          }
+          throw error;
+        }
+        return { created, updated };
+      },
     },
     workoutWriteAllowed: (userId) => workoutWriteLimiter.consume(userId),
     plannerWriteAllowed: async (userId) => {
@@ -133,4 +246,14 @@ export function createProductionApp() {
       },
     },
   });
+}
+
+type SqlExecutor = Pick<ReturnType<typeof createDatabase>, "execute">;
+
+async function catalogRevision(database: SqlExecutor): Promise<string> {
+  const result = await database.execute(sql`
+    select count(*)::text || ':' || coalesce(max(updated_at)::text, 'none') as revision
+    from exercises
+  `);
+  return String(result.rows[0]?.revision ?? "0:none");
 }
