@@ -5,6 +5,8 @@
 
 [build.environment]
   FLUTTER_VERSION = "3.44.9"
+  API_BASE_URL = "https://nicogym-api-huit.vercel.app"
+  APK_DOWNLOAD_URL = "https://github.com/nicodolas/nicogym/releases/latest/download/nicogym-android.apk"
 
 [[redirects]]
   from = "/*"
@@ -20,3 +22,13 @@
   for = "/flutter_service_worker.js"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; connect-src 'self' https://nicogym-api-huit.vercel.app; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob:; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; upgrade-insecure-requests"
+    Permissions-Policy = "camera=(), geolocation=(), microphone=()"
+    Referrer-Policy = "no-referrer"
+    Strict-Transport-Security = "max-age=31536000"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"

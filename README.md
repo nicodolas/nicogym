@@ -134,9 +134,11 @@ flutter build apk --release
 
 ## Netlify continuous deployment
 
-The root `netlify.toml` builds `apps/client` with the pinned Flutter version and
-publishes `apps/client/build/web`. Link the repository to Netlify, use `main` as
-the production branch, and add these build environment variables in Netlify:
+The root `netlify.toml` builds `apps/client` with the pinned Flutter version,
+public API/download URLs, and publishes `apps/client/build/web`. Link the
+repository to Netlify and use `main` as the production branch. The public build
+values are intentionally committed because they are visible in every compiled
+web client:
 
 ```dotenv
 API_BASE_URL=https://nicogym-api-huit.vercel.app

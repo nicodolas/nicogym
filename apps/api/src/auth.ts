@@ -16,7 +16,19 @@ export const auth = betterAuth({
   database: drizzleAdapter(database, { provider: "pg" }),
   emailAndPassword: {
     enabled: true,
-    minPasswordLength: 10,
+    minPasswordLength: 12,
+  },
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/email": { window: 60, max: 5 },
+      "/sign-up/email": { window: 60, max: 3 },
+    },
+  },
+  advanced: {
+    useSecureCookies: environment.BETTER_AUTH_URL.startsWith("https://"),
   },
   plugins: [bearer({ requireSignature: true })],
 });

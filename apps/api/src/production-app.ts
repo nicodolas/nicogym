@@ -4,6 +4,12 @@ import { createApp } from "./app.js";
 import { auth } from "./auth.js";
 import { createDatabase } from "./db/client.js";
 import { readEnvironment } from "./env.js";
+import { createFixedWindowRateLimiter } from "./rate-limit.js";
+
+const workoutWriteLimiter = createFixedWindowRateLimiter({
+  limit: 60,
+  windowMs: 60_000,
+});
 
 export function createProductionApp() {
   const environment = readEnvironment();
@@ -16,6 +22,7 @@ export function createProductionApp() {
       const session = await auth.api.getSession({ headers });
       return session ? { id: session.user.id } : null;
     },
+    workoutWriteAllowed: (userId) => workoutWriteLimiter.consume(userId),
     workoutSets: {
       insert: async ({ userId, workoutExerciseId, loadKg, repetitions }) => {
         await database.execute(sql`

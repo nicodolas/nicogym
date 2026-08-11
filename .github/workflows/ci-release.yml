@@ -20,6 +20,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run api:test
       - run: npm run api:typecheck
       - uses: subosito/flutter-action@v2

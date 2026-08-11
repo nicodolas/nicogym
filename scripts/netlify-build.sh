@@ -15,5 +15,6 @@ fi
 "${flutter_root}/bin/flutter" pub get
 "${flutter_root}/bin/flutter" build web \
   --release \
+  --no-web-resources-cdn \
   --dart-define="API_BASE_URL=${API_BASE_URL:?API_BASE_URL is required}" \
   --dart-define="APK_DOWNLOAD_URL=${APK_DOWNLOAD_URL:?APK_DOWNLOAD_URL is required}"

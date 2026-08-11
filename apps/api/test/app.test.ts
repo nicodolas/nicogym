@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 
 const authenticatedUser = { id: "user-1" };
+const workoutExerciseId = "d4d68f8b-4aa3-4cb0-a077-3dfd51e6d95f";
 
 describe("API", () => {
   it("identifies the API from its public root", async () => {
@@ -55,7 +56,7 @@ describe("API", () => {
     const response = await createApp().request("/api/workout-sets", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ workoutExerciseId: "exercise-1", loadKg: 40, repetitions: 10 }),
+      body: JSON.stringify({ workoutExerciseId, loadKg: 40, repetitions: 10 }),
     });
 
     expect(response.status).toBe(401);
@@ -69,12 +70,12 @@ describe("API", () => {
     }).request("/api/workout-sets", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ workoutExerciseId: "exercise-1", loadKg: 40, repetitions: 10 }),
+      body: JSON.stringify({ workoutExerciseId, loadKg: 40, repetitions: 10 }),
     });
 
     expect(response.status).toBe(201);
     expect(stored).toEqual([
-      { userId: "user-1", workoutExerciseId: "exercise-1", loadKg: 40, repetitions: 10 },
+      { userId: "user-1", workoutExerciseId, loadKg: 40, repetitions: 10 },
     ]);
   });
 
@@ -85,7 +86,7 @@ describe("API", () => {
     }).request("/api/workout-sets", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ workoutExerciseId: "someone-elses-exercise", loadKg: 40, repetitions: 10 }),
+      body: JSON.stringify({ workoutExerciseId, loadKg: 40, repetitions: 10 }),
     });
 
     expect(response.status).toBe(404);
@@ -99,5 +100,87 @@ describe("API", () => {
     });
 
     expect(response.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  it("rejects state-changing browser requests from an untrusted origin", async () => {
+    let inserted = false;
+    const response = await createApp({
+      allowedOrigins: ["https://nicodolasgym.netlify.app"],
+      currentUser: async () => authenticatedUser,
+      workoutSets: { insert: async () => (inserted = true) },
+    }).request("/api/workout-sets", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://evil.example",
+      },
+      body: JSON.stringify({ workoutExerciseId, loadKg: 40, repetitions: 10 }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(inserted).toBe(false);
+  });
+
+  it("rejects oversized request bodies before JSON parsing", async () => {
+    const response = await createApp({ currentUser: async () => authenticatedUser }).request(
+      "/api/workout-sets",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ padding: "x".repeat(33 * 1024) }),
+      },
+    );
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: "payload_too_large" });
+  });
+
+  it("requires JSON content for workout writes", async () => {
+    const response = await createApp({ currentUser: async () => authenticatedUser }).request(
+      "/api/workout-sets",
+      {
+        method: "POST",
+        headers: { "content-type": "text/plain" },
+        body: "not-json",
+      },
+    );
+
+    expect(response.status).toBe(415);
+  });
+
+  it("requires a UUID workout exercise identifier", async () => {
+    const response = await createApp({ currentUser: async () => authenticatedUser }).request(
+      "/api/workout-sets",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ workoutExerciseId: "not-a-uuid", loadKg: 40, repetitions: 10 }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("rate limits workout writes per authenticated user", async () => {
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      workoutWriteAllowed: () => false,
+    }).request("/api/workout-sets", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ workoutExerciseId, loadKg: 40, repetitions: 10 }),
+    });
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
+    expect(await response.json()).toEqual({ error: "rate_limit_exceeded" });
+  });
+
+  it("adds defensive HTTP response headers", async () => {
+    const response = await createApp().request("/health");
+
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
   });
 });
