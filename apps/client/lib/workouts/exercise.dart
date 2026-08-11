@@ -58,7 +58,17 @@ class ExerciseLibrary {
 
   static Future<List<Exercise>>? _cache;
 
-  static Future<List<Exercise>> load() => _cache ??= _read();
+  static Future<List<Exercise>> load() {
+    final cached = _cache;
+    if (cached != null) return cached;
+
+    late final Future<List<Exercise>> current;
+    current = _read().onError((error, stackTrace) {
+      if (identical(_cache, current)) _cache = null;
+      Error.throwWithStackTrace(error, stackTrace);
+    });
+    return _cache = current;
+  }
 
   static Future<List<Exercise>> _read() async {
     final content = await rootBundle.loadString(
