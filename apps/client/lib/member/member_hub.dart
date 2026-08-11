@@ -179,6 +179,7 @@ class _SchedulePlanner extends StatefulWidget {
 class _SchedulePlannerState extends State<_SchedulePlanner> {
   double _recoveryHours = 48;
   bool _acceptedSuggestion = false;
+  bool _dismissedSuggestion = false;
 
   @override
   Widget build(BuildContext context) {
@@ -194,6 +195,7 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
         ),
         const SizedBox(height: 22),
         Card(
+          key: const Key('today-workout-card'),
           child: Padding(
             padding: const EdgeInsets.all(18),
             child: Column(
@@ -207,7 +209,7 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
             ),
           ),
         ),
-        if (!legsReady && !_acceptedSuggestion) ...[
+        if (!legsReady && !_acceptedSuggestion && !_dismissedSuggestion) ...[
           const SizedBox(height: 12),
           Card(
             color: const Color(0xFFC7F36B),
@@ -230,7 +232,8 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
                     spacing: 8,
                     children: [
                       OutlinedButton(
-                        onPressed: () {},
+                        onPressed: () =>
+                            setState(() => _dismissedSuggestion = true),
                         child: const Text('Giữ lịch cũ'),
                       ),
                       FilledButton(

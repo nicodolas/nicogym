@@ -326,18 +326,17 @@ class _Header extends StatelessWidget {
     final authTokenStore = tokenStore ?? SecureTokenStore();
     var authenticated = (await authTokenStore.read())?.isNotEmpty ?? false;
     if (!authenticated && context.mounted) {
-      authenticated =
-          await Navigator.of(context).push<bool>(
-            MaterialPageRoute<bool>(
-              builder: (_) => AuthScreen(
-                authApi: AuthApi(
-                  baseUrl: Uri.parse(apiBaseUrl),
-                  tokenStore: authTokenStore,
-                ),
-              ),
+      await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => AuthScreen(
+            authApi: AuthApi(
+              baseUrl: Uri.parse(apiBaseUrl),
+              tokenStore: authTokenStore,
             ),
-          ) ??
-          false;
+          ),
+        ),
+      );
+      authenticated = (await authTokenStore.read())?.isNotEmpty ?? false;
     }
     if (!authenticated || !context.mounted) return;
     await Navigator.of(context).push(
