@@ -1,7 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+
+const minAuthPasswordLength = 12;
+const authPasswordRequirementMessage =
+    'Mật khẩu cần có ít nhất $minAuthPasswordLength ký tự.';
 
 abstract interface class TokenStore {
   Future<String?> read();
@@ -79,6 +84,7 @@ class AuthApi {
     return _authenticate(
       path: '/api/auth/sign-in/email',
       body: {'email': email.trim(), 'password': password},
+      registering: false,
     );
   }
 
@@ -90,26 +96,35 @@ class AuthApi {
     return _authenticate(
       path: '/api/auth/sign-up/email',
       body: {'name': name.trim(), 'email': email.trim(), 'password': password},
+      registering: true,
     );
   }
 
   Future<AuthUser> _authenticate({
     required String path,
     required Map<String, String> body,
+    required bool registering,
   }) async {
     http.Response response;
     try {
-      response = await _client.post(
+      final request = _client.post(
         baseUrl.resolve(path),
         headers: const {'content-type': 'application/json'},
         body: jsonEncode(body),
       );
+      response = registering
+          ? await request
+          : await request.timeout(const Duration(seconds: 12));
+    } on TimeoutException {
+      throw const AuthException('Máy chủ phản hồi quá chậm. Hãy thử lại.');
     } on http.ClientException {
       throw const AuthException('Không kết nối được máy chủ.');
+    } on Exception {
+      throw const AuthException('Không thể thiết lập kết nối an toàn.');
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw const AuthException('Email hoặc mật khẩu chưa đúng.');
+      throw AuthException(_errorMessage(response, registering: registering));
     }
 
     final dynamic payload;
@@ -139,5 +154,44 @@ class AuthApi {
       }
     }
     return AuthUser(id: userId, email: user['email'] as String);
+  }
+
+  String _errorMessage(http.Response response, {required bool registering}) {
+    String? code;
+    try {
+      final payload = jsonDecode(response.body);
+      if (payload is Map<String, dynamic> && payload['code'] is String) {
+        code = payload['code'] as String;
+      }
+    } on FormatException {
+      // Never expose untrusted server text to the member.
+    }
+
+    switch (code) {
+      case 'PASSWORD_TOO_SHORT':
+        return authPasswordRequirementMessage;
+      case 'USER_ALREADY_EXISTS':
+      case 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL':
+        return 'Email này đã có tài khoản. Hãy đăng nhập.';
+      case 'INVALID_EMAIL':
+      case 'INVALID_EMAIL_OR_PASSWORD':
+        return registering
+            ? 'Email chưa đúng định dạng.'
+            : 'Email hoặc mật khẩu chưa đúng.';
+      case 'INVALID_PASSWORD':
+        return registering
+            ? 'Mật khẩu chưa hợp lệ. Hãy thử mật khẩu khác.'
+            : 'Email hoặc mật khẩu chưa đúng.';
+    }
+
+    if (response.statusCode == 429) {
+      return 'Bạn thao tác quá nhanh. Vui lòng chờ một phút rồi thử lại.';
+    }
+    if (response.statusCode >= 500) {
+      return 'Máy chủ đang bận. Hãy thử lại sau ít phút.';
+    }
+    return registering
+        ? 'Chưa thể tạo tài khoản. Kiểm tra thông tin rồi thử lại.'
+        : 'Email hoặc mật khẩu chưa đúng.';
   }
 }
