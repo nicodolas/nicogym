@@ -4,6 +4,10 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
+const minAuthPasswordLength = 12;
+const authPasswordRequirementMessage =
+    'Mật khẩu cần có ít nhất $minAuthPasswordLength ký tự.';
+
 abstract interface class TokenStore {
   Future<String?> read();
   Future<void> write(String token);
@@ -114,6 +118,8 @@ class AuthApi {
       throw const AuthException('Máy chủ phản hồi quá chậm. Hãy thử lại.');
     } on http.ClientException {
       throw const AuthException('Không kết nối được máy chủ.');
+    } on Exception {
+      throw const AuthException('Không thể thiết lập kết nối an toàn.');
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -162,15 +168,18 @@ class AuthApi {
 
     switch (code) {
       case 'PASSWORD_TOO_SHORT':
-        return 'Mật khẩu cần có ít nhất 12 ký tự.';
+        return authPasswordRequirementMessage;
       case 'USER_ALREADY_EXISTS':
       case 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL':
         return 'Email này đã có tài khoản. Hãy đăng nhập.';
       case 'INVALID_EMAIL':
       case 'INVALID_EMAIL_OR_PASSWORD':
-      case 'INVALID_PASSWORD':
         return registering
             ? 'Email chưa đúng định dạng.'
+            : 'Email hoặc mật khẩu chưa đúng.';
+      case 'INVALID_PASSWORD':
+        return registering
+            ? 'Mật khẩu chưa hợp lệ. Hãy thử mật khẩu khác.'
             : 'Email hoặc mật khẩu chưa đúng.';
     }
 

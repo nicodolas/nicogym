@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -98,5 +100,50 @@ void main() {
       find.text('Email này đã có tài khoản. Hãy đăng nhập.'),
       findsOneWidget,
     );
+    expect(find.text('Đăng ký'), findsOneWidget);
+    expect(find.text('Đang xử lý…'), findsNothing);
+  });
+
+  testWidgets('registration ignores repeated submit actions while busy', (
+    tester,
+  ) async {
+    final response = Completer<http.Response>();
+    var requests = 0;
+    await tester.pumpWidget(
+      _app(
+        MockClient((_) {
+          requests += 1;
+          return response.future;
+        }),
+      ),
+    );
+
+    await tester.tap(find.text('Tạo tài khoản'));
+    await tester.pump();
+    await tester.enterText(find.byKey(const Key('auth-name')), 'Nico');
+    await tester.enterText(
+      find.byKey(const Key('auth-email')),
+      'nico@example.com',
+    );
+    await tester.enterText(
+      find.byKey(const Key('auth-password')),
+      'long-enough-password',
+    );
+    await tester.enterText(
+      find.byKey(const Key('auth-confirm-password')),
+      'long-enough-password',
+    );
+
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    expect(requests, 1);
+
+    response.complete(
+      http.Response('{"code":"USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL"}', 422),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Đăng ký'), findsOneWidget);
   });
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -116,6 +118,82 @@ void main() {
           (error) => error.message,
           'message',
           'Email này đã có tài khoản. Hãy đăng nhập.',
+        ),
+      ),
+    );
+  });
+
+  test('auth explains rate limits without exposing server text', () async {
+    final api = AuthApi(
+      baseUrl: Uri.parse('https://api.example.com'),
+      tokenStore: MemoryTokenStore(),
+      client: MockClient((_) async => http.Response('slow down', 429)),
+    );
+
+    await expectLater(
+      api.signIn(email: 'nico@example.com', password: 'password'),
+      throwsA(
+        isA<AuthException>().having(
+          (error) => error.message,
+          'message',
+          'Bạn thao tác quá nhanh. Vui lòng chờ một phút rồi thử lại.',
+        ),
+      ),
+    );
+  });
+
+  test('auth explains temporary server failures', () async {
+    final api = AuthApi(
+      baseUrl: Uri.parse('https://api.example.com'),
+      tokenStore: MemoryTokenStore(),
+      client: MockClient((_) async => http.Response('{}', 503)),
+    );
+
+    await expectLater(
+      api.signIn(email: 'nico@example.com', password: 'password'),
+      throwsA(
+        isA<AuthException>().having(
+          (error) => error.message,
+          'message',
+          'Máy chủ đang bận. Hãy thử lại sau ít phút.',
+        ),
+      ),
+    );
+  });
+
+  test('auth converts request timeouts to an actionable error', () async {
+    final api = AuthApi(
+      baseUrl: Uri.parse('https://api.example.com'),
+      tokenStore: MemoryTokenStore(),
+      client: MockClient((_) => throw TimeoutException('test timeout')),
+    );
+
+    await expectLater(
+      api.signIn(email: 'nico@example.com', password: 'password'),
+      throwsA(
+        isA<AuthException>().having(
+          (error) => error.message,
+          'message',
+          'Máy chủ phản hồi quá chậm. Hãy thử lại.',
+        ),
+      ),
+    );
+  });
+
+  test('auth converts other transport failures to a safe error', () async {
+    final api = AuthApi(
+      baseUrl: Uri.parse('https://api.example.com'),
+      tokenStore: MemoryTokenStore(),
+      client: MockClient((_) => throw const FormatException('TLS failure')),
+    );
+
+    await expectLater(
+      api.signIn(email: 'nico@example.com', password: 'password'),
+      throwsA(
+        isA<AuthException>().having(
+          (error) => error.message,
+          'message',
+          'Không thể thiết lập kết nối an toàn.',
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nicogym/auth/auth_api.dart';
 
 const _authInk = Color(0xFF111310);
@@ -48,6 +49,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _submit() async {
+    if (_busy) return;
     setState(() {
       _submitted = true;
       _error = null;
@@ -68,6 +70,7 @@ class _AuthScreenState extends State<AuthScreen> {
           password: _password.text,
         );
       }
+      TextInput.finishAutofillContext();
       if (mounted) Navigator.pop(context, true);
     } on AuthException catch (error) {
       if (mounted) setState(() => _error = error.message);
@@ -199,7 +202,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             decoration: InputDecoration(
                               labelText: 'Mật khẩu',
                               helperText: _registering
-                                  ? 'Ít nhất 12 ký tự'
+                                  ? 'Ít nhất $minAuthPasswordLength ký tự'
                                   : null,
                               prefixIcon: const Icon(
                                 Icons.lock_outline_rounded,
@@ -224,8 +227,9 @@ class _AuthScreenState extends State<AuthScreen> {
                               if (value == null || value.isEmpty) {
                                 return 'Nhập mật khẩu.';
                               }
-                              if (_registering && value.length < 12) {
-                                return 'Mật khẩu cần có ít nhất 12 ký tự.';
+                              if (_registering &&
+                                  value.length < minAuthPasswordLength) {
+                                return authPasswordRequirementMessage;
                               }
                               return null;
                             },
