@@ -75,6 +75,7 @@ flutter:
           weight: 700
   assets:
     - shorebird.yaml
+    - assets/data/exercises.vi.json
     - assets/images/training-hero.png
     - assets/images/nicogym-mark.png
 
