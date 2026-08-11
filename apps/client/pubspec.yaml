@@ -37,6 +37,7 @@ dependencies:
   url_launcher: ^6.3.2
   http: ^1.6.0
   flutter_secure_storage: 10.0.0
+  youtube_player_iframe: ^6.0.2
 
 dev_dependencies:
   flutter_test:
@@ -78,6 +79,7 @@ flutter:
     - assets/data/exercises.vi.json
     - assets/images/training-hero.png
     - assets/images/nicogym-mark.png
+    - assets/images/overhead-triceps-extension.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

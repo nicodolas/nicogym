@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nicogym/auth/auth_api.dart';
 import 'package:nicogym/auth/auth_screen.dart';
+import 'package:nicogym/member/member_hub.dart';
 import 'package:nicogym/workouts/exercise.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 const _ink = Color(0xFF111310);
 const _paper = Color(0xFFF1F0E9);
@@ -20,12 +22,14 @@ class NicoGymApp extends StatelessWidget {
       defaultValue: 'http://localhost:3000',
     ),
     this.exerciseLoader = ExerciseLibrary.load,
+    this.memberTokenStore,
   });
 
   final bool showRecoverySuggestion;
   final String apkDownloadUrl;
   final String apiBaseUrl;
   final Future<List<Exercise>> Function() exerciseLoader;
+  final TokenStore? memberTokenStore;
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +76,7 @@ class NicoGymApp extends StatelessWidget {
         apkDownloadUrl: apkDownloadUrl,
         apiBaseUrl: apiBaseUrl,
         exerciseLoader: exerciseLoader,
+        memberTokenStore: memberTokenStore,
       ),
     );
   }
@@ -84,12 +89,14 @@ class TodayScreen extends StatelessWidget {
     required this.apkDownloadUrl,
     required this.apiBaseUrl,
     required this.exerciseLoader,
+    required this.memberTokenStore,
   });
 
   final bool showRecoverySuggestion;
   final String apkDownloadUrl;
   final String apiBaseUrl;
   final Future<List<Exercise>> Function() exerciseLoader;
+  final TokenStore? memberTokenStore;
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +120,8 @@ class TodayScreen extends StatelessWidget {
                           _Header(
                             apkDownloadUrl: apkDownloadUrl,
                             apiBaseUrl: apiBaseUrl,
+                            exerciseLoader: exerciseLoader,
+                            tokenStore: memberTokenStore,
                           ),
                           const SizedBox(height: 28),
                           _TodayHero(compact: constraints.maxWidth < 760),
@@ -255,10 +264,17 @@ class _WorkoutLoaderScreenState extends State<_WorkoutLoaderScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.apkDownloadUrl, required this.apiBaseUrl});
+  const _Header({
+    required this.apkDownloadUrl,
+    required this.apiBaseUrl,
+    required this.exerciseLoader,
+    required this.tokenStore,
+  });
 
   final String apkDownloadUrl;
   final String apiBaseUrl;
+  final Future<List<Exercise>> Function() exerciseLoader;
+  final TokenStore? tokenStore;
 
   @override
   Widget build(BuildContext context) {
@@ -274,7 +290,8 @@ class _Header extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 11),
-        Text('NICOGYM', style: Theme.of(context).textTheme.titleLarge),
+        if (MediaQuery.sizeOf(context).width >= 430)
+          Text('NICOGYM', style: Theme.of(context).textTheme.titleLarge),
         const Spacer(),
         if (apkDownloadUrl.isNotEmpty)
           IconButton(
@@ -282,6 +299,11 @@ class _Header extends StatelessWidget {
             onPressed: () => _downloadApk(context),
             icon: const Icon(Icons.android),
           ),
+        IconButton(
+          tooltip: 'Thư viện và lịch tập',
+          onPressed: () => _openMemberHub(context),
+          icon: const Icon(Icons.grid_view_rounded),
+        ),
         IconButton(
           tooltip: 'Tài khoản',
           onPressed: () => Navigator.of(context).push(
@@ -297,6 +319,38 @@ class _Header extends StatelessWidget {
           icon: const Icon(Icons.person_outline),
         ),
       ],
+    );
+  }
+
+  Future<void> _openMemberHub(BuildContext context) async {
+    final authTokenStore = tokenStore ?? SecureTokenStore();
+    var authenticated = (await authTokenStore.read())?.isNotEmpty ?? false;
+    if (!authenticated && context.mounted) {
+      authenticated =
+          await Navigator.of(context).push<bool>(
+            MaterialPageRoute<bool>(
+              builder: (_) => AuthScreen(
+                authApi: AuthApi(
+                  baseUrl: Uri.parse(apiBaseUrl),
+                  tokenStore: authTokenStore,
+                ),
+              ),
+            ),
+          ) ??
+          false;
+    }
+    if (!authenticated || !context.mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (memberContext) => MemberHubScreen(
+          exerciseLoader: exerciseLoader,
+          onOpenExercise: (exercise) => Navigator.of(memberContext).push(
+            MaterialPageRoute<void>(
+              builder: (_) => WorkoutScreen(exercise: exercise),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -633,11 +687,31 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   final _loadController = TextEditingController(text: '40');
   final _repsController = TextEditingController(text: '10');
   final List<String> _sets = [];
+  YoutubePlayerController? _videoController;
+
+  @override
+  void initState() {
+    super.initState();
+    final videoId = widget.exercise.videoId;
+    if (videoId != null) {
+      _videoController = YoutubePlayerController.fromVideoId(
+        videoId: videoId,
+        autoPlay: false,
+        params: const YoutubePlayerParams(
+          showFullscreenButton: true,
+          interfaceLanguage: 'vi',
+          captionLanguage: 'vi',
+          privacyEnhancedMode: true,
+        ),
+      );
+    }
+  }
 
   @override
   void dispose() {
     _loadController.dispose();
     _repsController.dispose();
+    _videoController?.close();
     super.dispose();
   }
 
@@ -690,6 +764,28 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   widget.exercise.summary,
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
+                if (widget.exercise.imageAsset case final imageAsset?) ...[
+                  const SizedBox(height: 20),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: Image.asset(imageAsset, fit: BoxFit.cover),
+                  ),
+                ],
+                if (_videoController case final controller?) ...[
+                  const SizedBox(height: 20),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: YoutubePlayer(
+                      controller: controller,
+                      aspectRatio: 16 / 9,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Video phát ngay trong NicoGym · YouTube privacy-enhanced mode',
+                    style: TextStyle(color: _muted, fontSize: 12),
+                  ),
+                ],
                 const SizedBox(height: 28),
                 _GuideSection(
                   title: 'CHUẨN BỊ',
