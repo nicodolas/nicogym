@@ -47,7 +47,8 @@ export function createProductionApp() {
           select
             planner_states.weekly_schedule as "weeklySchedule",
             planner_states.recovery_hours as "recoveryHours",
-            planner_states.today_workout as "todayWorkout"
+            planner_states.today_workout as "todayWorkout",
+            planner_states.suggestion_accepted as "suggestionAccepted"
           from planner_states
           inner join profiles on profiles.id = planner_states.profile_id
           where profiles.auth_user_id = ${userId}
@@ -57,30 +58,39 @@ export function createProductionApp() {
           weeklySchedule: Array<{ day: number; title: string }>;
           recoveryHours: number;
           todayWorkout: string;
+          suggestionAccepted: boolean;
         } | undefined) ?? null;
       },
       upsert: async (userId, state) => {
-        await database.execute(sql`
-          insert into profiles (auth_user_id)
-          values (${userId})
-          on conflict (auth_user_id) do nothing
-        `);
         const result = await database.execute(sql`
+          with ensured_profile as (
+            insert into profiles (auth_user_id)
+            values (${userId})
+            on conflict (auth_user_id) do update
+              set updated_at = profiles.updated_at
+            returning id
+          )
           insert into planner_states (
-            profile_id, weekly_schedule, recovery_hours, today_workout, updated_at
+            profile_id, weekly_schedule, recovery_hours, today_workout,
+            suggestion_accepted, updated_at
           )
           select id, ${JSON.stringify(state.weeklySchedule)}::jsonb,
-            ${state.recoveryHours}, ${state.todayWorkout}, now()
-          from profiles where auth_user_id = ${userId}
+            ${state.recoveryHours}, ${state.todayWorkout},
+            ${state.suggestionAccepted}, now()
+          from ensured_profile
           on conflict (profile_id) do update set
             weekly_schedule = excluded.weekly_schedule,
             recovery_hours = excluded.recovery_hours,
             today_workout = excluded.today_workout,
+            suggestion_accepted = excluded.suggestion_accepted,
             updated_at = now()
           returning weekly_schedule as "weeklySchedule",
-            recovery_hours as "recoveryHours", today_workout as "todayWorkout"
+            recovery_hours as "recoveryHours", today_workout as "todayWorkout",
+            suggestion_accepted as "suggestionAccepted"
         `);
-        return result.rows[0] as typeof state;
+        const saved = result.rows[0] as typeof state | undefined;
+        if (!saved) throw new Error("planner_upsert_failed");
+        return saved;
       },
     },
     workoutSets: {

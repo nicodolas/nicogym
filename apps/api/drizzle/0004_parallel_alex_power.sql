@@ -1,0 +1,2 @@
+ALTER TABLE "planner_states" ADD COLUMN "suggestion_accepted" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE INDEX "api_rate_limits_window_started_at_idx" ON "api_rate_limits" USING btree ("window_started_at");

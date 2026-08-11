@@ -13,6 +13,7 @@ describe("API", () => {
     ],
     recoveryHours: 48,
     todayWorkout: "Chân + Mông",
+    suggestionAccepted: false,
   };
 
   it("identifies the API from its public root", async () => {
@@ -123,6 +124,37 @@ describe("API", () => {
     );
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "invalid_planner_state" });
+  });
+
+  it("rejects duplicate planner days", async () => {
+    const response = await createApp({ currentUser: async () => authenticatedUser }).request(
+      "/api/planner",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...plannerState,
+          weeklySchedule: [
+            { day: 1, title: "Ngực" },
+            { day: 1, title: "Lưng" },
+          ],
+        }),
+      },
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("rate limits planner writes per authenticated user", async () => {
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      plannerWriteAllowed: () => false,
+    }).request("/api/planner", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(plannerState),
+    });
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
   });
 
   it("stores a valid set for the authenticated user", async () => {

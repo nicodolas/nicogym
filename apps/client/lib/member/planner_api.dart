@@ -32,6 +32,7 @@ class PlannerState {
     required this.weeklySchedule,
     required this.recoveryHours,
     required this.todayWorkout,
+    required this.suggestionAccepted,
   });
 
   static const defaults = PlannerState(
@@ -42,29 +43,34 @@ class PlannerState {
     ],
     recoveryHours: 48,
     todayWorkout: 'Chân + Mông',
+    suggestionAccepted: false,
   );
 
   final List<PlannedSession> weeklySchedule;
   final int recoveryHours;
   final String todayWorkout;
+  final bool suggestionAccepted;
 
   Map<String, Object> toJson() => {
     'weeklySchedule': weeklySchedule.map((item) => item.toJson()).toList(),
     'recoveryHours': recoveryHours,
     'todayWorkout': todayWorkout,
+    'suggestionAccepted': suggestionAccepted,
   };
 
   factory PlannerState.fromJson(Map<String, dynamic> json) {
     final schedule = json['weeklySchedule'];
     final recoveryHours = json['recoveryHours'];
     final todayWorkout = json['todayWorkout'];
+    final suggestionAccepted = json['suggestionAccepted'];
     if (schedule is! List<dynamic> ||
         schedule.isEmpty ||
         recoveryHours is! int ||
         recoveryHours < 24 ||
         recoveryHours > 96 ||
         todayWorkout is! String ||
-        todayWorkout.isEmpty) {
+        todayWorkout.isEmpty ||
+        suggestionAccepted is! bool) {
       throw const FormatException('invalid planner state');
     }
     return PlannerState(
@@ -76,6 +82,7 @@ class PlannerState {
       }).toList(),
       recoveryHours: recoveryHours,
       todayWorkout: todayWorkout,
+      suggestionAccepted: suggestionAccepted,
     );
   }
 }
@@ -86,33 +93,39 @@ abstract interface class PlannerRepository {
 }
 
 abstract interface class PlannerCache {
-  Future<PlannerState?> read();
-  Future<void> write(PlannerState state);
+  Future<CachedPlannerState?> read();
+  Future<void> write(PlannerState state, {required bool dirty});
+}
+
+class CachedPlannerState {
+  const CachedPlannerState({required this.state, required this.dirty});
+  final PlannerState state;
+  final bool dirty;
 }
 
 class SecurePlannerCache implements PlannerCache {
-  SecurePlannerCache({required this.tokenStore, FlutterSecureStorage? storage})
+  SecurePlannerCache({FlutterSecureStorage? storage})
     : _storage = storage ?? const FlutterSecureStorage();
 
   static const _key = 'planner_state_v1';
-  final TokenStore tokenStore;
   final FlutterSecureStorage _storage;
 
   @override
-  Future<PlannerState?> read() async {
+  Future<CachedPlannerState?> read() async {
     final value = await _storage.read(key: _key);
     if (value == null) return null;
     try {
       final decoded = jsonDecode(value);
       if (decoded is! Map<String, dynamic>) throw const FormatException();
-      final token = await tokenStore.read();
-      if (token == null || decoded['ownerToken'] != token) {
-        await _storage.delete(key: _key);
-        return null;
-      }
       final state = decoded['state'];
-      if (state is! Map<String, dynamic>) throw const FormatException();
-      return PlannerState.fromJson(state);
+      final dirty = decoded['dirty'];
+      if (state is! Map<String, dynamic> || dirty is! bool) {
+        throw const FormatException();
+      }
+      return CachedPlannerState(
+        state: PlannerState.fromJson(state),
+        dirty: dirty,
+      );
     } catch (_) {
       await _storage.delete(key: _key);
       return null;
@@ -120,12 +133,10 @@ class SecurePlannerCache implements PlannerCache {
   }
 
   @override
-  Future<void> write(PlannerState state) async {
-    final token = await tokenStore.read();
-    if (token == null || token.isEmpty) return;
+  Future<void> write(PlannerState state, {required bool dirty}) async {
     await _storage.write(
       key: _key,
-      value: jsonEncode({'ownerToken': token, 'state': state.toJson()}),
+      value: jsonEncode({'dirty': dirty, 'state': state.toJson()}),
     );
   }
 }
@@ -135,24 +146,59 @@ class CachedPlannerRepository implements PlannerRepository {
 
   final PlannerApi remote;
   final PlannerCache cache;
+  int _activeOperations = 0;
+  Completer<void>? _idleCompleter;
 
   @override
   Future<PlannerState?> load() async {
+    _beginOperation();
     try {
+      final cached = await cache.read();
+      if (cached?.dirty ?? false) {
+        try {
+          final synced = await remote.save(cached!.state);
+          await cache.write(synced, dirty: false);
+          return synced;
+        } catch (_) {
+          return cached!.state;
+        }
+      }
       final state = await remote.load();
-      if (state != null) await cache.write(state);
-      return state ?? await cache.read();
+      if (state != null) await cache.write(state, dirty: false);
+      return state ?? cached?.state;
     } catch (_) {
       final cached = await cache.read();
-      if (cached != null) return cached;
+      if (cached != null) return cached.state;
       rethrow;
+    } finally {
+      _endOperation();
     }
   }
 
   @override
   Future<PlannerState> save(PlannerState state) async {
-    await cache.write(state);
-    return remote.save(state);
+    _beginOperation();
+    try {
+      await cache.write(state, dirty: true);
+      final synced = await remote.save(state);
+      await cache.write(synced, dirty: false);
+      return synced;
+    } finally {
+      _endOperation();
+    }
+  }
+
+  Future<void> whenIdle() async {
+    if (_activeOperations > 0) await _idleCompleter!.future;
+  }
+
+  void _beginOperation() {
+    if (_activeOperations++ == 0) _idleCompleter = Completer<void>();
+  }
+
+  void _endOperation() {
+    _activeOperations--;
+    if (_activeOperations == 0) _idleCompleter?.complete();
   }
 
   void close() => remote.close();

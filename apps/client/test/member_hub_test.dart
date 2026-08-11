@@ -124,6 +124,7 @@ void main() {
         weeklySchedule: [PlannedSession(day: 2, title: 'Vai + Core')],
         recoveryHours: 72,
         todayWorkout: 'Chân + Mông',
+        suggestionAccepted: false,
       ),
     );
     await tester.pumpWidget(
@@ -140,11 +141,11 @@ void main() {
 
     await tester.tap(find.text('Xác nhận đổi'));
     await tester.pumpAndSettle();
-    expect(repository.saved?.todayWorkout, 'Ngực + Tay sau');
+    expect(repository.saved?.todayWorkout, 'Vai + Core');
     expect(repository.saved?.recoveryHours, 72);
 
-    await tester.scrollUntilVisible(find.text('Vai + Core'), 300);
-    expect(find.text('Vai + Core'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Vai + Core').last, 300);
+    expect(find.text('Vai + Core'), findsWidgets);
     await tester.scrollUntilVisible(
       find.text('72 giờ trước khi tập lại cùng nhóm cơ'),
       300,

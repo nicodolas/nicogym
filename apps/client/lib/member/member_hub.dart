@@ -184,6 +184,7 @@ class _SchedulePlanner extends StatefulWidget {
 class _SchedulePlannerState extends State<_SchedulePlanner> {
   double _recoveryHours = 48;
   String _todayWorkout = 'Chân + Mông';
+  bool _suggestionAccepted = false;
   bool _dismissedSuggestion = false;
   List<PlannedSession> _weeklySchedule = PlannerState.defaults.weeklySchedule;
   bool _loading = false;
@@ -207,6 +208,7 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
         _weeklySchedule = state.weeklySchedule;
         _recoveryHours = state.recoveryHours.toDouble();
         _todayWorkout = state.todayWorkout;
+        _suggestionAccepted = state.suggestionAccepted;
         _syncError = null;
         _retryLoad = false;
       });
@@ -239,6 +241,7 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
         weeklySchedule: _weeklySchedule,
         recoveryHours: _recoveryHours.round(),
         todayWorkout: _todayWorkout,
+        suggestionAccepted: _suggestionAccepted,
       );
       try {
         await widget.repository!.save(snapshot);
@@ -256,8 +259,14 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
 
   @override
   Widget build(BuildContext context) {
-    final legsReady = 24 >= _recoveryHours;
-    final acceptedSuggestion = _todayWorkout != 'Chân + Mông';
+    const elapsedRecoveryHours = 24;
+    final musclesReady = elapsedRecoveryHours >= _recoveryHours;
+    final alternativeWorkout = _weeklySchedule
+        .map((session) => session.title)
+        .firstWhere(
+          (title) => title != _todayWorkout,
+          orElse: () => _todayWorkout,
+        );
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
       children: [
@@ -275,7 +284,9 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
           ActionChip(
             avatar: const Icon(Icons.sync_problem_outlined),
             label: Text(_syncError!),
-            onPressed: _saving ? null : (_retryLoad ? _load : _save),
+            onPressed: _saving || _loading
+                ? null
+                : (_retryLoad ? _load : _save),
           ),
         ],
         const SizedBox(height: 22),
@@ -297,7 +308,10 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
             ),
           ),
         ),
-        if (!legsReady && !acceptedSuggestion && !_dismissedSuggestion) ...[
+        if (!musclesReady &&
+            !_suggestionAccepted &&
+            alternativeWorkout != _todayWorkout &&
+            !_dismissedSuggestion) ...[
           const SizedBox(height: 12),
           Card(
             color: const Color(0xFFC7F36B),
@@ -309,11 +323,11 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
                   const Text('GỢI Ý THEO PHỤC HỒI'),
                   const SizedBox(height: 8),
                   Text(
-                    'Đổi sang Ngực + Tay sau?',
+                    'Đổi sang $alternativeWorkout?',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   Text(
-                    'Chân mới nghỉ 24 giờ, còn khoảng ${(_recoveryHours - 24).round()} giờ theo cấu hình của bạn.',
+                    'Nhóm cơ theo lịch mới nghỉ $elapsedRecoveryHours giờ, còn khoảng ${(_recoveryHours - elapsedRecoveryHours).round()} giờ theo cấu hình của bạn.',
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -329,9 +343,10 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
                         onPressed: _loading
                             ? null
                             : () {
-                                setState(
-                                  () => _todayWorkout = 'Ngực + Tay sau',
-                                );
+                                setState(() {
+                                  _todayWorkout = alternativeWorkout;
+                                  _suggestionAccepted = true;
+                                });
                                 _save();
                               },
                         child: const Text('Xác nhận đổi'),

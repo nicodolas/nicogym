@@ -14,17 +14,23 @@ class SecureTokenStore implements TokenStore {
     : _storage = storage ?? const FlutterSecureStorage();
 
   static const _tokenKey = 'better_auth_session';
+  static const _plannerCacheKey = 'planner_state_v1';
   final FlutterSecureStorage _storage;
 
   @override
   Future<String?> read() => _storage.read(key: _tokenKey);
 
   @override
-  Future<void> write(String token) =>
-      _storage.write(key: _tokenKey, value: token);
+  Future<void> write(String token) async {
+    if (await read() != token) await _storage.delete(key: _plannerCacheKey);
+    await _storage.write(key: _tokenKey, value: token);
+  }
 
   @override
-  Future<void> clear() => _storage.delete(key: _tokenKey);
+  Future<void> clear() async {
+    await _storage.delete(key: _tokenKey);
+    await _storage.delete(key: _plannerCacheKey);
+  }
 }
 
 class AuthUser {

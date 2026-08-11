@@ -17,6 +17,7 @@ const plannerStateSchema = z.object({
     .max(7),
   recoveryHours: z.number().int().min(24).max(96),
   todayWorkout: z.string().trim().min(1).max(80),
+  suggestionAccepted: z.boolean(),
 }).refine(
   (state) => new Set(state.weeklySchedule.map((session) => session.day)).size === state.weeklySchedule.length,
   { message: "duplicate_schedule_day", path: ["weeklySchedule"] },

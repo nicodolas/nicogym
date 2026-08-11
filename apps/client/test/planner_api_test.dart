@@ -23,6 +23,7 @@ void main() {
                 ],
                 'recoveryHours': 48,
                 'todayWorkout': 'Chân + Mông',
+                'suggestionAccepted': false,
               },
             }),
           ),
@@ -89,13 +90,15 @@ void main() {
 }
 
 class _MemoryPlannerCache implements PlannerCache {
-  PlannerState? state;
+  CachedPlannerState? entry;
+  PlannerState? get state => entry?.state;
 
   @override
-  Future<PlannerState?> read() async => state;
+  Future<CachedPlannerState?> read() async => entry;
 
   @override
-  Future<void> write(PlannerState value) async => state = value;
+  Future<void> write(PlannerState value, {required bool dirty}) async =>
+      entry = CachedPlannerState(state: value, dirty: dirty);
 }
 
 class _TokenStore implements TokenStore {

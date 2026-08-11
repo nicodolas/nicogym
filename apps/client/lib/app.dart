@@ -345,7 +345,7 @@ class _Header extends StatelessWidget {
         baseUrl: Uri.parse(apiBaseUrl),
         tokenStore: authTokenStore,
       ),
-      cache: SecurePlannerCache(tokenStore: authTokenStore),
+      cache: SecurePlannerCache(),
     );
     try {
       await Navigator.of(context).push(
@@ -362,6 +362,7 @@ class _Header extends StatelessWidget {
         ),
       );
     } finally {
+      await plannerRepository.whenIdle();
       plannerRepository.close();
     }
   }
