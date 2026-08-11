@@ -65,7 +65,10 @@ class ExerciseLibrary {
     late final Future<List<Exercise>> current;
     current = _read().onError((error, stackTrace) {
       if (identical(_cache, current)) _cache = null;
-      Error.throwWithStackTrace(error, stackTrace);
+      Error.throwWithStackTrace(
+        error ?? StateError('Unknown exercise library load failure'),
+        stackTrace,
+      );
     });
     return _cache = current;
   }
