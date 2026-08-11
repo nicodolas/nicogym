@@ -1,5 +1,9 @@
-import { handle } from "hono/vercel";
-
 import { createProductionApp } from "../src/production-app.js";
 
-export default handle(createProductionApp());
+const app = createProductionApp();
+
+export default {
+  fetch(request: Request) {
+    return app.fetch(request);
+  },
+};

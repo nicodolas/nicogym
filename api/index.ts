@@ -2,13 +2,15 @@ type VercelHandler = (request: Request) => Response | Promise<Response>;
 
 let productionHandler: VercelHandler | undefined;
 
-export default async function vercelHandler(request: Request) {
-  if (!productionHandler) {
-    const [{ handle }, { createProductionApp }] = await Promise.all([
-      import("hono/vercel"),
-      import("../apps/api/src/production-app.js"),
-    ]);
-    productionHandler = handle(createProductionApp());
-  }
-  return productionHandler(request);
-}
+export default {
+  async fetch(request: Request) {
+    if (!productionHandler) {
+      const { createProductionApp } = await import(
+        "../apps/api/src/production-app.js"
+      );
+      const app = createProductionApp();
+      productionHandler = (incomingRequest) => app.fetch(incomingRequest);
+    }
+    return productionHandler(request);
+  },
+};

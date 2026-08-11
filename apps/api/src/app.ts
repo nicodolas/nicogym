@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { handle } from "hono/vercel";
 import { cors } from "hono/cors";
 import { z } from "zod";
 
@@ -93,14 +92,17 @@ export function createApp(dependencies: AppDependencies = {}) {
   return app;
 }
 
-type VercelHandler = ReturnType<typeof handle>;
+type VercelHandler = (request: Request) => Response | Promise<Response>;
 
 let productionHandler: VercelHandler | undefined;
 
-export default async function vercelHandler(request: Request) {
-  if (!productionHandler) {
-    const { createProductionApp } = await import("./production-app.js");
-    productionHandler = handle(createProductionApp());
-  }
-  return productionHandler(request);
-}
+export default {
+  async fetch(request: Request) {
+    if (!productionHandler) {
+      const { createProductionApp } = await import("./production-app.js");
+      const app = createProductionApp();
+      productionHandler = (incomingRequest) => app.fetch(incomingRequest);
+    }
+    return productionHandler(request);
+  },
+};
