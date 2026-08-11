@@ -53,7 +53,71 @@ void main() {
 
     await expectLater(
       api.signIn(email: 'nico@example.com', password: 'wrong-password'),
-      throwsA(isA<AuthException>()),
+      throwsA(
+        isA<AuthException>().having(
+          (error) => error.message,
+          'message',
+          'Email hoặc mật khẩu chưa đúng.',
+        ),
+      ),
+    );
+  });
+
+  test('sign up explains Better Auth password requirements', () async {
+    final api = AuthApi(
+      baseUrl: Uri.parse('https://api.example.com'),
+      tokenStore: MemoryTokenStore(),
+      client: MockClient(
+        (_) async => http.Response(
+          '{"message":"Password too short","code":"PASSWORD_TOO_SHORT"}',
+          400,
+          headers: {'content-type': 'application/json'},
+        ),
+      ),
+    );
+
+    await expectLater(
+      api.signUp(
+        name: 'Nico',
+        email: 'nico@example.com',
+        password: 'too-short',
+      ),
+      throwsA(
+        isA<AuthException>().having(
+          (error) => error.message,
+          'message',
+          'Mật khẩu cần có ít nhất 12 ký tự.',
+        ),
+      ),
+    );
+  });
+
+  test('sign up explains when an email is already registered', () async {
+    final api = AuthApi(
+      baseUrl: Uri.parse('https://api.example.com'),
+      tokenStore: MemoryTokenStore(),
+      client: MockClient(
+        (_) async => http.Response(
+          '{"code":"USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL"}',
+          422,
+          headers: {'content-type': 'application/json'},
+        ),
+      ),
+    );
+
+    await expectLater(
+      api.signUp(
+        name: 'Nico',
+        email: 'nico@example.com',
+        password: 'long-enough-password',
+      ),
+      throwsA(
+        isA<AuthException>().having(
+          (error) => error.message,
+          'message',
+          'Email này đã có tài khoản. Hãy đăng nhập.',
+        ),
+      ),
     );
   });
 
