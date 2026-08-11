@@ -1,4 +1,12 @@
+const cleanupMarker = 'nicogym:legacy-cache-cleanup:v1';
+
 window.nicogymLegacyCacheCleanup = (async () => {
+  try {
+    if (localStorage.getItem(cleanupMarker) === 'done') return;
+  } catch {
+    // Storage can be unavailable in privacy modes; cleanup remains best-effort.
+  }
+
   if ('serviceWorker' in navigator) {
     const registrations = await navigator.serviceWorker.getRegistrations();
     const legacyRegistrations = registrations.filter((registration) => {
@@ -16,6 +24,12 @@ window.nicogymLegacyCacheCleanup = (async () => {
         .filter((key) => key.startsWith('flutter-app-') || key === 'flutter-temp-cache')
         .map((key) => caches.delete(key)),
     );
+  }
+
+  try {
+    localStorage.setItem(cleanupMarker, 'done');
+  } catch {
+    // A missing marker only means cleanup may run again on the next visit.
   }
 })().catch(() => {
   // Cache cleanup is best-effort and must never block application startup.
