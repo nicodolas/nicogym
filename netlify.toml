@@ -1,0 +1,22 @@
+[build]
+  base = "apps/client"
+  command = "bash ../../scripts/netlify-build.sh"
+  publish = "build/web"
+
+[build.environment]
+  FLUTTER_VERSION = "3.44.9"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/flutter_service_worker.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"

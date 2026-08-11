@@ -132,6 +132,19 @@ flutter build web --release
 flutter build apk --release
 ```
 
+## Netlify continuous deployment
+
+The root `netlify.toml` builds `apps/client` with the pinned Flutter version and
+publishes `apps/client/build/web`. Link the repository to Netlify, use `main` as
+the production branch, and add these build environment variables in Netlify:
+
+```dotenv
+API_BASE_URL=https://nicogym-api-huit.vercel.app
+APK_DOWNLOAD_URL=https://github.com/nicodolas/nicogym/releases/latest/download/nicogym-android.apk
+```
+
+Netlify will rebuild and deploy the web app after each push to `main`.
+
 ## Android releases
 
 The app uses versions in `major.minor.patch+build` format. A new native dependency, Flutter engine, Android configuration, or bundled asset requires a new base release and build number.
