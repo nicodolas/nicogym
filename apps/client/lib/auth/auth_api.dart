@@ -9,22 +9,43 @@ abstract interface class TokenStore {
   Future<void> clear();
 }
 
-class SecureTokenStore implements TokenStore {
+abstract interface class UserScopedTokenStore implements TokenStore {
+  Future<void> writeForUser(String token, String userId);
+}
+
+class SecureTokenStore implements UserScopedTokenStore {
   SecureTokenStore({FlutterSecureStorage? storage})
     : _storage = storage ?? const FlutterSecureStorage();
 
   static const _tokenKey = 'better_auth_session';
+  static const _plannerCacheKey = 'planner_state_v1';
+  static const _userIdKey = 'better_auth_user_id';
   final FlutterSecureStorage _storage;
 
   @override
   Future<String?> read() => _storage.read(key: _tokenKey);
 
   @override
-  Future<void> write(String token) =>
-      _storage.write(key: _tokenKey, value: token);
+  Future<void> write(String token) async {
+    await _storage.write(key: _tokenKey, value: token);
+  }
 
   @override
-  Future<void> clear() => _storage.delete(key: _tokenKey);
+  Future<void> writeForUser(String token, String userId) async {
+    final previousUserId = await _storage.read(key: _userIdKey);
+    if (previousUserId != userId) {
+      await _storage.delete(key: _plannerCacheKey);
+    }
+    await _storage.write(key: _userIdKey, value: userId);
+    await write(token);
+  }
+
+  @override
+  Future<void> clear() async {
+    await _storage.delete(key: _tokenKey);
+    await _storage.delete(key: _userIdKey);
+    await _storage.delete(key: _plannerCacheKey);
+  }
 }
 
 class AuthUser {
@@ -108,8 +129,15 @@ class AuthApi {
       throw const AuthException('Máy chủ trả về dữ liệu không hợp lệ.');
     }
 
+    final userId = user['id'] as String;
     final token = response.headers['set-auth-token'];
-    if (token != null && token.isNotEmpty) await tokenStore.write(token);
-    return AuthUser(id: user['id'] as String, email: user['email'] as String);
+    if (token != null && token.isNotEmpty) {
+      if (tokenStore case final UserScopedTokenStore scopedStore) {
+        await scopedStore.writeForUser(token, userId);
+      } else {
+        await tokenStore.write(token);
+      }
+    }
+    return AuthUser(id: userId, email: user['email'] as String);
   }
 }

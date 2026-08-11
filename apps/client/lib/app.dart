@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:nicogym/auth/auth_api.dart';
 import 'package:nicogym/auth/auth_screen.dart';
 import 'package:nicogym/member/member_hub.dart';
+import 'package:nicogym/member/planner_api.dart';
 import 'package:nicogym/workouts/exercise.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
@@ -339,18 +340,31 @@ class _Header extends StatelessWidget {
       authenticated = (await authTokenStore.read())?.isNotEmpty ?? false;
     }
     if (!authenticated || !context.mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (memberContext) => MemberHubScreen(
-          exerciseLoader: exerciseLoader,
-          onOpenExercise: (exercise) => Navigator.of(memberContext).push(
-            MaterialPageRoute<void>(
-              builder: (_) => WorkoutScreen(exercise: exercise),
+    final plannerRepository = CachedPlannerRepository(
+      remote: PlannerApi(
+        baseUrl: Uri.parse(apiBaseUrl),
+        tokenStore: authTokenStore,
+      ),
+      cache: SecurePlannerCache(),
+    );
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (memberContext) => MemberHubScreen(
+            exerciseLoader: exerciseLoader,
+            plannerRepository: plannerRepository,
+            onOpenExercise: (exercise) => Navigator.of(memberContext).push(
+              MaterialPageRoute<void>(
+                builder: (_) => WorkoutScreen(exercise: exercise),
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
+    } finally {
+      await plannerRepository.whenIdle();
+      plannerRepository.close();
+    }
   }
 
   Future<void> _downloadApk(BuildContext context) async {

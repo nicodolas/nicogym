@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nicogym/member/member_hub.dart';
+import 'package:nicogym/member/planner_api.dart';
 import 'package:nicogym/workouts/exercise.dart';
 
 void main() {
@@ -80,10 +81,14 @@ void main() {
 
     expect(find.text('Chân + Mông'), findsWidgets);
     expect(find.text('Đổi sang Ngực + Tay sau?'), findsOneWidget);
+    await tester.ensureVisible(find.text('Xác nhận đổi'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Xác nhận đổi'));
     await tester.pump();
 
     final todayCard = find.byKey(const Key('today-workout-card'));
+    await tester.drag(find.byType(ListView), const Offset(0, 300));
+    await tester.pump();
     expect(
       find.descendant(of: todayCard, matching: find.text('Chân + Mông')),
       findsNothing,
@@ -108,10 +113,64 @@ void main() {
       ),
     );
 
+    await tester.ensureVisible(find.text('Giữ lịch cũ'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Giữ lịch cũ'));
     await tester.pump();
 
     expect(find.text('Chân + Mông'), findsWidgets);
     expect(find.text('Đổi sang Ngực + Tay sau?'), findsNothing);
   });
+
+  testWidgets('loads and saves the signed-in planner through its repository', (
+    tester,
+  ) async {
+    final repository = _MemoryPlannerRepository(
+      const PlannerState(
+        weeklySchedule: [PlannedSession(day: 2, title: 'Vai + Core')],
+        recoveryHours: 72,
+        todayWorkout: 'Chân + Mông',
+        suggestionAccepted: false,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemberHubScreen(
+          exerciseLoader: () async => const [chestExercise],
+          onOpenExercise: (_) {},
+          initialTab: 1,
+          plannerRepository: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Xác nhận đổi'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Xác nhận đổi'));
+    await tester.pumpAndSettle();
+    expect(repository.saved?.todayWorkout, 'Vai + Core');
+    expect(repository.saved?.recoveryHours, 72);
+
+    await tester.scrollUntilVisible(find.text('Vai + Core').last, 300);
+    expect(find.text('Vai + Core'), findsWidgets);
+    await tester.scrollUntilVisible(
+      find.text('72 giờ trước khi tập lại cùng nhóm cơ'),
+      300,
+    );
+    expect(find.text('72 giờ trước khi tập lại cùng nhóm cơ'), findsOneWidget);
+  });
+}
+
+class _MemoryPlannerRepository implements PlannerRepository {
+  _MemoryPlannerRepository(this.initial);
+
+  final PlannerState? initial;
+  PlannerState? saved;
+
+  @override
+  Future<PlannerLoadResult> load() async => PlannerLoadResult(state: initial);
+
+  @override
+  Future<PlannerState> save(PlannerState state) async => saved = state;
 }

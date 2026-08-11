@@ -15,6 +15,27 @@
       "when": 1786211647285,
       "tag": "0001_supreme_wilson_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786433145407,
+      "tag": "0002_lean_arachne",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786434172613,
+      "tag": "0003_zippy_meltdown",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786434959040,
+      "tag": "0004_parallel_alex_power",
+      "breakpoints": true
     }
   ]
 }

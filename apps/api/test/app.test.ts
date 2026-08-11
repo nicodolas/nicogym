@@ -6,6 +6,16 @@ const authenticatedUser = { id: "user-1" };
 const workoutExerciseId = "d4d68f8b-4aa3-4cb0-a077-3dfd51e6d95f";
 
 describe("API", () => {
+  const plannerState = {
+    weeklySchedule: [
+      { day: 1, title: "Ngực + Tay sau" },
+      { day: 5, title: "Chân + Mông" },
+    ],
+    recoveryHours: 48,
+    todayWorkout: "Chân + Mông",
+    suggestionAccepted: false,
+  };
+
   it("identifies the API from its public root", async () => {
     const response = await createApp().request("/");
 
@@ -60,6 +70,91 @@ describe("API", () => {
     });
 
     expect(response.status).toBe(401);
+  });
+
+  it("requires authentication to read the planner", async () => {
+    const response = await createApp().request("/api/planner");
+    expect(response.status).toBe(401);
+  });
+
+  it("returns the authenticated member planner", async () => {
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      plannerStates: { get: async () => plannerState, upsert: async (_, state) => state },
+    }).request("/api/planner");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: plannerState });
+  });
+
+  it("validates and stores planner changes for the authenticated member", async () => {
+    const stored: unknown[] = [];
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      plannerStates: {
+        get: async () => null,
+        upsert: async (userId, state) => (stored.push({ userId, state }), state),
+      },
+    }).request("/api/planner", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(plannerState),
+    });
+
+    expect(response.status).toBe(200);
+    expect(stored).toEqual([{ userId: "user-1", state: plannerState }]);
+  });
+
+  it("allows browser preflight for planner PUT requests", async () => {
+    const response = await createApp({ allowedOrigins: ["https://app.nicogym.test"] }).request(
+      "/api/planner",
+      { method: "OPTIONS", headers: { origin: "https://app.nicogym.test" } },
+    );
+    expect(response.headers.get("access-control-allow-methods")).toContain("PUT");
+  });
+
+  it("rejects unsafe planner bounds", async () => {
+    const response = await createApp({ currentUser: async () => authenticatedUser }).request(
+      "/api/planner",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...plannerState, recoveryHours: 200 }),
+      },
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_planner_state" });
+  });
+
+  it("rejects duplicate planner days", async () => {
+    const response = await createApp({ currentUser: async () => authenticatedUser }).request(
+      "/api/planner",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...plannerState,
+          weeklySchedule: [
+            { day: 1, title: "Ngực" },
+            { day: 1, title: "Lưng" },
+          ],
+        }),
+      },
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("rate limits planner writes per authenticated user", async () => {
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      plannerWriteAllowed: () => false,
+    }).request("/api/planner", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(plannerState),
+    });
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
   });
 
   it("stores a valid set for the authenticated user", async () => {

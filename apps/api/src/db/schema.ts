@@ -2,6 +2,7 @@ import {
   boolean,
   doublePrecision,
   integer,
+  index,
   jsonb,
   pgTable,
   primaryKey,
@@ -113,6 +114,29 @@ export const recoveryPreferences = pgTable(
     minimumHours: integer("minimum_hours").notNull().default(48),
   },
   (table) => [primaryKey({ columns: [table.profileId, table.muscleGroupId] })],
+);
+
+export const plannerStates = pgTable("planner_states", {
+  profileId: uuid("profile_id")
+    .primaryKey()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  weeklySchedule: jsonb("weekly_schedule")
+    .$type<Array<{ day: number; title: string }>>()
+    .notNull(),
+  recoveryHours: integer("recovery_hours").notNull().default(48),
+  todayWorkout: text("today_workout").notNull().default("Chân + Mông"),
+  suggestionAccepted: boolean("suggestion_accepted").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const apiRateLimits = pgTable(
+  "api_rate_limits",
+  {
+    key: text("key").primaryKey(),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
+    requestCount: integer("request_count").notNull(),
+  },
+  (table) => [index("api_rate_limits_window_started_at_idx").on(table.windowStartedAt)],
 );
 
 export const recommendationRuns = pgTable("recommendation_runs", {
