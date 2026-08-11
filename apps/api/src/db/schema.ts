@@ -127,6 +127,12 @@ export const plannerStates = pgTable("planner_states", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const apiRateLimits = pgTable("api_rate_limits", {
+  key: text("key").primaryKey(),
+  windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
+  requestCount: integer("request_count").notNull(),
+});
+
 export const recommendationRuns = pgTable("recommendation_runs", {
   id: uuid("id").defaultRandom().primaryKey(),
   profileId: uuid("profile_id").notNull().references(() => profiles.id),

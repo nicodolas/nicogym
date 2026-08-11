@@ -23,7 +23,24 @@ export function createProductionApp() {
       return session ? { id: session.user.id } : null;
     },
     workoutWriteAllowed: (userId) => workoutWriteLimiter.consume(userId),
-    plannerWriteAllowed: (userId) => workoutWriteLimiter.consume(`planner:${userId}`),
+    plannerWriteAllowed: async (userId) => {
+      const result = await database.execute(sql`
+        insert into api_rate_limits (key, window_started_at, request_count)
+        values (${`planner:${userId}`}, date_trunc('minute', now()), 1)
+        on conflict (key) do update set
+          window_started_at = case
+            when api_rate_limits.window_started_at < date_trunc('minute', now())
+              then date_trunc('minute', now())
+            else api_rate_limits.window_started_at
+          end,
+          request_count = case
+            when api_rate_limits.window_started_at < date_trunc('minute', now()) then 1
+            else api_rate_limits.request_count + 1
+          end
+        returning request_count
+      `);
+      return Number(result.rows[0]?.request_count ?? 61) <= 60;
+    },
     plannerStates: {
       get: async (userId) => {
         const result = await database.execute(sql`

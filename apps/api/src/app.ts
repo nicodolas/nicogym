@@ -67,7 +67,7 @@ export function createApp(dependencies: AppDependencies = {}) {
     cors({
       origin: (origin) => (allowedOrigins.includes(origin) ? origin : null),
       allowHeaders: ["Content-Type", "Authorization"],
-      allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       exposeHeaders: ["set-auth-token"],
       maxAge: 600,
       credentials: true,

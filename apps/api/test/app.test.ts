@@ -104,6 +104,14 @@ describe("API", () => {
     expect(stored).toEqual([{ userId: "user-1", state: plannerState }]);
   });
 
+  it("allows browser preflight for planner PUT requests", async () => {
+    const response = await createApp({ allowedOrigins: ["https://app.nicogym.test"] }).request(
+      "/api/planner",
+      { method: "OPTIONS", headers: { origin: "https://app.nicogym.test" } },
+    );
+    expect(response.headers.get("access-control-allow-methods")).toContain("PUT");
+  });
+
   it("rejects unsafe planner bounds", async () => {
     const response = await createApp({ currentUser: async () => authenticatedUser }).request(
       "/api/planner",

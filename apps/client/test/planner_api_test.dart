@@ -57,6 +57,45 @@ void main() {
     expect(captured.method, 'PUT');
     expect(jsonDecode(captured.body), PlannerState.defaults.toJson());
   });
+
+  test('converts malformed successful state into a safe error', () async {
+    final api = PlannerApi(
+      baseUrl: Uri.parse('https://api.example.test'),
+      tokenStore: _TokenStore('session-token'),
+      client: MockClient(
+        (_) async => http.Response('{"data":{"recoveryHours":"bad"}}', 200),
+      ),
+    );
+
+    await expectLater(api.load(), throwsA(isA<AuthException>()));
+  });
+
+  test('writes through to cache before a remote save failure', () async {
+    final cache = _MemoryPlannerCache();
+    final remote = PlannerApi(
+      baseUrl: Uri.parse('https://api.example.test'),
+      tokenStore: _TokenStore('session-token'),
+      client: MockClient((_) async => http.Response('offline', 503)),
+    );
+    final repository = CachedPlannerRepository(remote: remote, cache: cache);
+
+    await expectLater(
+      repository.save(PlannerState.defaults),
+      throwsA(isA<AuthException>()),
+    );
+    expect(cache.state?.todayWorkout, 'Chân + Mông');
+    repository.close();
+  });
+}
+
+class _MemoryPlannerCache implements PlannerCache {
+  PlannerState? state;
+
+  @override
+  Future<PlannerState?> read() async => state;
+
+  @override
+  Future<void> write(PlannerState value) async => state = value;
 }
 
 class _TokenStore implements TokenStore {

@@ -340,22 +340,30 @@ class _Header extends StatelessWidget {
       authenticated = (await authTokenStore.read())?.isNotEmpty ?? false;
     }
     if (!authenticated || !context.mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (memberContext) => MemberHubScreen(
-          exerciseLoader: exerciseLoader,
-          plannerRepository: PlannerApi(
-            baseUrl: Uri.parse(apiBaseUrl),
-            tokenStore: authTokenStore,
-          ),
-          onOpenExercise: (exercise) => Navigator.of(memberContext).push(
-            MaterialPageRoute<void>(
-              builder: (_) => WorkoutScreen(exercise: exercise),
+    final plannerRepository = CachedPlannerRepository(
+      remote: PlannerApi(
+        baseUrl: Uri.parse(apiBaseUrl),
+        tokenStore: authTokenStore,
+      ),
+      cache: SecurePlannerCache(tokenStore: authTokenStore),
+    );
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (memberContext) => MemberHubScreen(
+            exerciseLoader: exerciseLoader,
+            plannerRepository: plannerRepository,
+            onOpenExercise: (exercise) => Navigator.of(memberContext).push(
+              MaterialPageRoute<void>(
+                builder: (_) => WorkoutScreen(exercise: exercise),
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
+    } finally {
+      plannerRepository.close();
+    }
   }
 
   Future<void> _downloadApk(BuildContext context) async {

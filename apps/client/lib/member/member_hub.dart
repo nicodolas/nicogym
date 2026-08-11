@@ -188,6 +188,7 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
   List<PlannedSession> _weeklySchedule = PlannerState.defaults.weeklySchedule;
   bool _loading = false;
   bool _saving = false;
+  bool _pendingSave = false;
   String? _syncError;
   bool _retryLoad = false;
 
@@ -223,26 +224,34 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
 
   Future<void> _save() async {
     if (widget.repository == null) return;
+    if (_saving) {
+      _pendingSave = true;
+      return;
+    }
     setState(() {
       _saving = true;
       _syncError = null;
       _retryLoad = false;
     });
-    try {
-      await widget.repository!.save(
-        PlannerState(
-          weeklySchedule: _weeklySchedule,
-          recoveryHours: _recoveryHours.round(),
-          todayWorkout: _todayWorkout,
-        ),
+    do {
+      _pendingSave = false;
+      final snapshot = PlannerState(
+        weeklySchedule: _weeklySchedule,
+        recoveryHours: _recoveryHours.round(),
+        todayWorkout: _todayWorkout,
       );
-    } catch (_) {
-      if (mounted) {
-        setState(() => _syncError = 'Chưa lưu được thay đổi. Chạm để thử lại.');
+      try {
+        await widget.repository!.save(snapshot);
+        if (mounted) setState(() => _syncError = null);
+      } catch (_) {
+        if (mounted) {
+          setState(
+            () => _syncError = 'Đã lưu trên thiết bị. Chạm để đồng bộ lại.',
+          );
+        }
       }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+    } while (_pendingSave);
+    if (mounted) setState(() => _saving = false);
   }
 
   @override
@@ -311,15 +320,20 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
                     spacing: 8,
                     children: [
                       OutlinedButton(
-                        onPressed: () =>
-                            setState(() => _dismissedSuggestion = true),
+                        onPressed: _loading
+                            ? null
+                            : () => setState(() => _dismissedSuggestion = true),
                         child: const Text('Giữ lịch cũ'),
                       ),
                       FilledButton(
-                        onPressed: () {
-                          setState(() => _todayWorkout = 'Ngực + Tay sau');
-                          _save();
-                        },
+                        onPressed: _loading
+                            ? null
+                            : () {
+                                setState(
+                                  () => _todayWorkout = 'Ngực + Tay sau',
+                                );
+                                _save();
+                              },
                         child: const Text('Xác nhận đổi'),
                       ),
                     ],
@@ -352,8 +366,10 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
           max: 96,
           divisions: 6,
           label: '${_recoveryHours.round()} giờ',
-          onChanged: (value) => setState(() => _recoveryHours = value),
-          onChangeEnd: (_) => _save(),
+          onChanged: _loading
+              ? null
+              : (value) => setState(() => _recoveryHours = value),
+          onChangeEnd: _loading ? null : (_) => _save(),
         ),
         const Text(
           'Đây là quy tắc lập lịch, không phải chẩn đoán y tế. Bạn có thể chỉnh riêng từng nhóm cơ ở phiên bản tiếp theo.',
