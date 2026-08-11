@@ -11,5 +11,5 @@ For every repository change intended for GitHub, invoke the repository skill at 
 - Every new commit or push makes prior CI, Cubic, and CodeRabbit results stale; obtain fresh results for the new head SHA.
 - Delivery remains blocked while a required check fails or any blocking review item is unresolved.
 - Keep the PR open unless the user explicitly authorizes merging.
-- If a reviewer has not responded after 30 minutes, verify its installation, permissions, draft status, and trigger mechanism, then report the blocker.
+- Start a 30-minute reviewer clock for each newly pushed head SHA. Only a new head SHA resets it; bot retriggers do not. On timeout, verify installation, permissions, draft status, and trigger mechanism, then report the blocker.
 - An unavailable reviewer remains blocking unless the user explicitly waives that reviewer after the missing evidence and risk are recorded. A reviewer waiver does not itself authorize merging.

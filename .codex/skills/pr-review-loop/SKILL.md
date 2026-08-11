@@ -54,7 +54,7 @@ Treat logins/check names containing `coderabbit`, `code-rabbit`, or `cubic` case
     - every distinct review item has a recorded disposition and rationale;
     - the PR remains open unless merging was explicitly authorized.
 
-If a required bot has not responded after 30 minutes, verify installation, PR permissions, draft status, and trigger commands documented by that bot. Leave the PR blocked and report the exact missing reviewer instead of claiming completion. Continue only if the bot responds or the user explicitly waives that reviewer after acknowledging the recorded risk.
+Start the 30-minute reviewer clock when each new head SHA is pushed. Reset it only when another head SHA is pushed; retry commands and unrelated PR activity do not reset it. If a required bot has not responded for that head within the window, verify installation, PR permissions, draft status, and documented trigger commands. Leave the PR blocked and report the exact missing reviewer instead of claiming completion. Continue only if the bot responds or the user explicitly waives that reviewer after acknowledging the recorded risk.
 
 ## Final report
 
