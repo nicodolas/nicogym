@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nicogym/app.dart';
+import 'package:nicogym/auth/auth_api.dart';
 import 'package:nicogym/workouts/exercise.dart';
 
 void main() {
+  final signedInTokenStore = _TestTokenStore('signed-in');
   const testExercises = [
     Exercise(
       id: 'leg-press',
@@ -172,4 +174,38 @@ void main() {
 
     expect(find.text('TẠO TÀI KHOẢN'), findsOneWidget);
   });
+
+  testWidgets('opens the full member library for a signed-in user', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        memberTokenStore: signedInTokenStore,
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Thư viện và lịch tập'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('KHÔNG GIAN CỦA BẠN'), findsOneWidget);
+    expect(find.text('TOÀN THÂN'), findsOneWidget);
+  });
+}
+
+class _TestTokenStore implements TokenStore {
+  _TestTokenStore(this.token);
+
+  String? token;
+
+  @override
+  Future<void> clear() async => token = null;
+
+  @override
+  Future<String?> read() async => token;
+
+  @override
+  Future<void> write(String value) async => token = value;
 }
