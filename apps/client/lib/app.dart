@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nicogym/auth/auth_api.dart';
 import 'package:nicogym/auth/auth_screen.dart';
 import 'package:nicogym/workouts/exercise.dart';
@@ -210,19 +211,43 @@ class _WorkoutLoaderScreen extends StatefulWidget {
 }
 
 class _WorkoutLoaderScreenState extends State<_WorkoutLoaderScreen> {
-  late final Future<List<Exercise>> _exercises = widget.loader();
+  late Future<List<Exercise>> _exercises = widget.loader();
+
+  void _retry() {
+    final nextLoad = widget.loader();
+    setState(() {
+      _exercises = nextLoad;
+    });
+  }
 
   @override
   Widget build(BuildContext context) => FutureBuilder<List<Exercise>>(
     future: _exercises,
     builder: (context, snapshot) {
       if (snapshot.hasError || (snapshot.hasData && snapshot.data!.isEmpty)) {
-        return const Scaffold(
-          body: Center(child: Text('Không tải được bài tập. Hãy thử lại.')),
+        return Scaffold(
+          appBar: AppBar(),
+          body: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Không tải được bài tập. Hãy thử lại.'),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _retry,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Thử lại'),
+                ),
+              ],
+            ),
+          ),
         );
       }
       if (!snapshot.hasData) {
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        return Scaffold(
+          appBar: AppBar(),
+          body: const Center(child: CircularProgressIndicator()),
+        );
       }
       return WorkoutScreen(exercise: snapshot.data!.first);
     },
@@ -495,6 +520,12 @@ class _WorkoutOverviewState extends State<_WorkoutOverview> {
                 message: 'Đang chuẩn bị bài tập…',
               );
             }
+            if (snapshot.data!.isEmpty) {
+              return const _LibraryMessage(
+                icon: Icons.error_outline,
+                message: 'Chưa có bài tập trong lịch này.',
+              );
+            }
             return Column(
               children: [
                 for (final entry in snapshot.data!.indexed)
@@ -519,7 +550,11 @@ class _LibraryMessage extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: 24),
     child: Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: [Icon(icon, size: 18), const SizedBox(width: 8), Text(message)],
+      children: [
+        Icon(icon, size: 18),
+        const SizedBox(width: 8),
+        Flexible(child: Text(message, textAlign: TextAlign.center)),
+      ],
     ),
   );
 }
@@ -699,18 +734,12 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   runSpacing: 8,
                   children: [
                     FilledButton.icon(
-                      onPressed: () => launchUrl(
-                        Uri.parse(widget.exercise.videoUrl),
-                        mode: LaunchMode.externalApplication,
-                      ),
+                      onPressed: () => _openLink(widget.exercise.videoUrl),
                       icon: const Icon(Icons.play_circle_outline_rounded),
                       label: const Text('Xem video mẫu'),
                     ),
                     TextButton.icon(
-                      onPressed: () => launchUrl(
-                        Uri.parse(widget.exercise.sourceUrl),
-                        mode: LaunchMode.externalApplication,
-                      ),
+                      onPressed: () => _openLink(widget.exercise.sourceUrl),
                       icon: const Icon(Icons.open_in_new_rounded, size: 18),
                       label: Text('Nguồn: ${widget.exercise.sourceLabel}'),
                     ),
@@ -770,6 +799,24 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _openLink(String url) async {
+    try {
+      final opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && mounted) _showLinkError();
+    } on PlatformException {
+      if (mounted) _showLinkError();
+    }
+  }
+
+  void _showLinkError() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Không thể mở liên kết lúc này.')),
     );
   }
 }

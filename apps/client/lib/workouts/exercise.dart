@@ -56,7 +56,11 @@ class Exercise {
 class ExerciseLibrary {
   ExerciseLibrary._();
 
-  static Future<List<Exercise>> load() async {
+  static Future<List<Exercise>>? _cache;
+
+  static Future<List<Exercise>> load() => _cache ??= _read();
+
+  static Future<List<Exercise>> _read() async {
     final content = await rootBundle.loadString(
       'assets/data/exercises.vi.json',
     );

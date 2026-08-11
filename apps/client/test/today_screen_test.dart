@@ -82,7 +82,7 @@ void main() {
     expect(find.text('HIỆP 2'), findsOneWidget);
   });
 
-  testWidgets('opens every exercise guide from the workout list', (
+  testWidgets('opens the Romanian deadlift guide from the workout list', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 900);
@@ -107,6 +107,31 @@ void main() {
     );
     expect(find.text('Xem video mẫu'), findsOneWidget);
     expect(find.text('Nguồn: ACE Exercise Library'), findsOneWidget);
+  });
+
+  testWidgets('can go back or retry when the exercise library fails', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    var attempts = 0;
+    Future<List<Exercise>> flakyLoader() async {
+      attempts += 1;
+      if (attempts <= 2) throw Exception('fixture load failed');
+      return testExercises;
+    }
+
+    await tester.pumpWidget(NicoGymApp(exerciseLoader: flakyLoader));
+    await tester.tap(find.text('Bắt đầu buổi tập'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byTooltip('Back'), findsOneWidget);
+    expect(find.text('Thử lại'), findsOneWidget);
+    await tester.tap(find.text('Thử lại'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Leg press'), findsOneWidget);
   });
 
   testWidgets('requires confirmation before applying a suggestion', (
