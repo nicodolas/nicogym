@@ -148,10 +148,12 @@ class CachedPlannerRepository implements PlannerRepository {
   final PlannerCache cache;
   int _activeOperations = 0;
   Completer<void>? _idleCompleter;
+  bool usedOfflineFallback = false;
 
   @override
   Future<PlannerState?> load() async {
     _beginOperation();
+    usedOfflineFallback = false;
     try {
       final cached = await cache.read();
       if (cached?.dirty ?? false) {
@@ -160,6 +162,7 @@ class CachedPlannerRepository implements PlannerRepository {
           await cache.write(synced, dirty: false);
           return synced;
         } catch (_) {
+          usedOfflineFallback = true;
           return cached!.state;
         }
       }
@@ -168,7 +171,10 @@ class CachedPlannerRepository implements PlannerRepository {
       return state ?? cached?.state;
     } catch (_) {
       final cached = await cache.read();
-      if (cached != null) return cached.state;
+      if (cached != null) {
+        usedOfflineFallback = true;
+        return cached.state;
+      }
       rethrow;
     } finally {
       _endOperation();

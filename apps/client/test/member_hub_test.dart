@@ -81,10 +81,14 @@ void main() {
 
     expect(find.text('Chân + Mông'), findsWidgets);
     expect(find.text('Đổi sang Ngực + Tay sau?'), findsOneWidget);
+    await tester.ensureVisible(find.text('Xác nhận đổi'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Xác nhận đổi'));
     await tester.pump();
 
     final todayCard = find.byKey(const Key('today-workout-card'));
+    await tester.drag(find.byType(ListView), const Offset(0, 300));
+    await tester.pump();
     expect(
       find.descendant(of: todayCard, matching: find.text('Chân + Mông')),
       findsNothing,
@@ -109,6 +113,8 @@ void main() {
       ),
     );
 
+    await tester.ensureVisible(find.text('Giữ lịch cũ'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Giữ lịch cũ'));
     await tester.pump();
 
@@ -139,6 +145,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('Xác nhận đổi'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Xác nhận đổi'));
     await tester.pumpAndSettle();
     expect(repository.saved?.todayWorkout, 'Vai + Core');

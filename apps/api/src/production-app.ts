@@ -25,6 +25,10 @@ export function createProductionApp() {
     workoutWriteAllowed: (userId) => workoutWriteLimiter.consume(userId),
     plannerWriteAllowed: async (userId) => {
       const result = await database.execute(sql`
+        with cleanup as (
+          delete from api_rate_limits
+          where window_started_at < now() - interval '1 day'
+        )
         insert into api_rate_limits (key, window_started_at, request_count)
         values (${`planner:${userId}`}, date_trunc('minute', now()), 1)
         on conflict (key) do update set
@@ -63,12 +67,16 @@ export function createProductionApp() {
       },
       upsert: async (userId, state) => {
         const result = await database.execute(sql`
-          with ensured_profile as (
+          with inserted_profile as (
             insert into profiles (auth_user_id)
             values (${userId})
-            on conflict (auth_user_id) do update
-              set updated_at = profiles.updated_at
+            on conflict (auth_user_id) do nothing
             returning id
+          ), ensured_profile as (
+            select id from inserted_profile
+            union all
+            select id from profiles where auth_user_id = ${userId}
+            limit 1
           )
           insert into planner_states (
             profile_id, weekly_schedule, recovery_hours, today_workout,

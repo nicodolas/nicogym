@@ -85,6 +85,27 @@ void main() {
       throwsA(isA<AuthException>()),
     );
     expect(cache.state?.todayWorkout, 'Chân + Mông');
+    expect(cache.entry?.dirty, isTrue);
+    repository.close();
+  });
+
+  test('marks a cached load as an offline fallback', () async {
+    final cache = _MemoryPlannerCache()
+      ..entry = const CachedPlannerState(
+        state: PlannerState.defaults,
+        dirty: false,
+      );
+    final repository = CachedPlannerRepository(
+      remote: PlannerApi(
+        baseUrl: Uri.parse('https://api.example.test'),
+        tokenStore: _TokenStore('session-token'),
+        client: MockClient((_) async => http.Response('offline', 503)),
+      ),
+      cache: cache,
+    );
+
+    expect((await repository.load())?.todayWorkout, 'Chân + Mông');
+    expect(repository.usedOfflineFallback, isTrue);
     repository.close();
   });
 }

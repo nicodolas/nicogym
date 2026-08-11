@@ -209,8 +209,13 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
         _recoveryHours = state.recoveryHours.toDouble();
         _todayWorkout = state.todayWorkout;
         _suggestionAccepted = state.suggestionAccepted;
-        _syncError = null;
-        _retryLoad = false;
+        final offline =
+            widget.repository is CachedPlannerRepository &&
+            (widget.repository! as CachedPlannerRepository).usedOfflineFallback;
+        _syncError = offline
+            ? 'Đang dùng lịch đã lưu trên thiết bị. Chạm để đồng bộ lại.'
+            : null;
+        _retryLoad = offline;
       });
     } catch (_) {
       if (mounted) {
@@ -327,7 +332,7 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   Text(
-                    'Nhóm cơ theo lịch mới nghỉ $elapsedRecoveryHours giờ, còn khoảng ${(_recoveryHours - elapsedRecoveryHours).round()} giờ theo cấu hình của bạn.',
+                    'Nhóm cơ của $_todayWorkout mới nghỉ $elapsedRecoveryHours giờ, còn khoảng ${(_recoveryHours - elapsedRecoveryHours).round()} giờ theo cấu hình. Bạn có thể đổi sang $alternativeWorkout để tập tiếp hôm nay.',
                   ),
                   const SizedBox(height: 12),
                   Wrap(
