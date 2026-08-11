@@ -6,6 +6,7 @@
 [build.environment]
   FLUTTER_VERSION = "3.44.9"
   API_BASE_URL = "https://nicogym-api-huit.vercel.app"
+  BASE_APP_VERSION = "1.1.1+5"
   APK_DOWNLOAD_URL = "https://github.com/nicodolas/nicogym/releases/latest/download/nicogym-android.apk"
 
 [[redirects]]
@@ -24,9 +25,19 @@
     Cache-Control = "no-cache, no-store, must-revalidate"
 
 [[headers]]
+  for = "/flutter_bootstrap.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/main.dart.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = "default-src 'self'; base-uri 'self'; connect-src 'self' https://nicogym-api-huit.vercel.app https://www.youtube.com https://www.youtube-nocookie.com; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src https://www.youtube.com https://www.youtube-nocookie.com; img-src 'self' data: blob: https://i.ytimg.com; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; upgrade-insecure-requests"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; connect-src 'self' https://nicogym-api-huit.vercel.app https://www.youtube.com https://www.youtube-nocookie.com; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src https://www.youtube.com https://www.youtube-nocookie.com; img-src 'self' data: blob: https:; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; upgrade-insecure-requests"
     Permissions-Policy = "camera=(), geolocation=(), microphone=()"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Strict-Transport-Security = "max-age=31536000"

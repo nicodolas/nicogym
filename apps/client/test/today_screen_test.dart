@@ -60,6 +60,26 @@ void main() {
     expect(find.text('Bắt đầu buổi tập'), findsOneWidget);
   });
 
+  testWidgets('shows only the compact base app version', (tester) async {
+    useMobileViewport(tester);
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        baseAppVersion: '1.1.1+5',
+      ),
+    );
+
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.scrollUntilVisible(
+      find.text('v1.1.1+5'),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.text('v1.1.1+5'), findsOneWidget);
+    expect(find.textContaining('OTA'), findsNothing);
+  });
+
   testWidgets('opens workout mode and logs a set quickly', (tester) async {
     useMobileViewport(tester);
     await tester.pumpWidget(NicoGymApp(exerciseLoader: loadTestExercises));

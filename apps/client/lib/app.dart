@@ -22,6 +22,10 @@ class NicoGymApp extends StatelessWidget {
       'API_BASE_URL',
       defaultValue: 'http://localhost:3000',
     ),
+    this.baseAppVersion = const String.fromEnvironment(
+      'BASE_APP_VERSION',
+      defaultValue: '1.1.1+5',
+    ),
     this.exerciseLoader = ExerciseLibrary.load,
     this.memberTokenStore,
   });
@@ -29,6 +33,7 @@ class NicoGymApp extends StatelessWidget {
   final bool showRecoverySuggestion;
   final String apkDownloadUrl;
   final String apiBaseUrl;
+  final String baseAppVersion;
   final Future<List<Exercise>> Function() exerciseLoader;
   final TokenStore? memberTokenStore;
 
@@ -48,6 +53,7 @@ class NicoGymApp extends StatelessWidget {
         textTheme: const TextTheme(
           displayLarge: TextStyle(
             fontFamily: 'BarlowCondensed',
+            fontFamilyFallback: ['NotoSans'],
             fontSize: 64,
             height: .86,
             fontWeight: FontWeight.w800,
@@ -55,19 +61,30 @@ class NicoGymApp extends StatelessWidget {
           ),
           headlineLarge: TextStyle(
             fontFamily: 'BarlowCondensed',
+            fontFamilyFallback: ['NotoSans'],
             fontSize: 38,
             height: .95,
             fontWeight: FontWeight.w800,
           ),
           titleLarge: TextStyle(
             fontFamily: 'BarlowCondensed',
+            fontFamilyFallback: ['NotoSans'],
             fontSize: 24,
             fontWeight: FontWeight.w700,
           ),
-          bodyLarge: TextStyle(fontFamily: 'Barlow', fontSize: 16),
-          bodyMedium: TextStyle(fontFamily: 'Barlow', fontSize: 14),
+          bodyLarge: TextStyle(
+            fontFamily: 'Barlow',
+            fontFamilyFallback: ['NotoSans'],
+            fontSize: 16,
+          ),
+          bodyMedium: TextStyle(
+            fontFamily: 'Barlow',
+            fontFamilyFallback: ['NotoSans'],
+            fontSize: 14,
+          ),
           labelLarge: TextStyle(
             fontFamily: 'Barlow',
+            fontFamilyFallback: ['NotoSans'],
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -76,6 +93,7 @@ class NicoGymApp extends StatelessWidget {
         showRecoverySuggestion: showRecoverySuggestion,
         apkDownloadUrl: apkDownloadUrl,
         apiBaseUrl: apiBaseUrl,
+        baseAppVersion: baseAppVersion,
         exerciseLoader: exerciseLoader,
         memberTokenStore: memberTokenStore,
       ),
@@ -89,6 +107,7 @@ class TodayScreen extends StatelessWidget {
     required this.showRecoverySuggestion,
     required this.apkDownloadUrl,
     required this.apiBaseUrl,
+    required this.baseAppVersion,
     required this.exerciseLoader,
     required this.memberTokenStore,
   });
@@ -96,6 +115,7 @@ class TodayScreen extends StatelessWidget {
   final bool showRecoverySuggestion;
   final String apkDownloadUrl;
   final String apiBaseUrl;
+  final String baseAppVersion;
   final Future<List<Exercise>> Function() exerciseLoader;
   final TokenStore? memberTokenStore;
 
@@ -136,6 +156,16 @@ class TodayScreen extends StatelessWidget {
                             const SizedBox(height: 20),
                           ],
                           _WorkoutOverview(loader: exerciseLoader),
+                          const SizedBox(height: 28),
+                          Center(
+                            child: Text(
+                              'v$baseAppVersion',
+                              style: const TextStyle(
+                                color: _muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
