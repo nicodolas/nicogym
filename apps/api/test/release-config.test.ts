@@ -19,8 +19,15 @@ describe('release configuration', () => {
     'https://127.0.0.2',
     'https://10.0.0.1',
     'https://192.168.1.2',
+    'https://192.0.2.1',
+    'https://198.51.100.1',
+    'https://203.0.113.1',
+    'https://224.0.0.1',
     'https://[::1]',
     'https://[0:0:0:0:0:0:0:1]',
+    'https://[::ffff:127.0.0.1]',
+    'https://[::ffff:10.0.0.1]',
+    'https://[::ffff:8.8.8.8]',
     'https://api.internal',
   ])(
     'rejects unsafe production API URL %j',
@@ -85,6 +92,8 @@ describe('release configuration', () => {
     );
     expect(cleanup).toContain("endsWith('/flutter_service_worker.js')");
     expect(cleanup).toContain('Promise.allSettled');
+    expect(cleanup).toContain("nicogym:legacy-cache-cleanup:v1");
+    expect(cleanup).toContain('localStorage.setItem');
     expect(loader).toContain('nicogymLegacyCacheCleanup');
     expect(loader).toContain("bootstrap.src = 'flutter_bootstrap.js'");
   });
