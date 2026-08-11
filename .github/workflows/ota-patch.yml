@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+env:
+  API_BASE_URL: https://nicogym-api-huit.vercel.app
+  BASE_APP_VERSION: ${{ inputs.release_version }}
+
 jobs:
   patch:
     runs-on: ubuntu-latest
@@ -28,6 +32,7 @@ jobs:
       - uses: shorebirdtech/setup-shorebird@v1
         with:
           cache: true
+      - run: node scripts/validate-release-config.mjs
       - working-directory: apps/client
         run: flutter pub get
       - name: Publish exact-release patch
@@ -39,4 +44,7 @@ jobs:
           --release-version "${{ inputs.release_version }}"
           --channel "${{ inputs.channel }}"
           --force
+          --
+          --dart-define=API_BASE_URL=${{ env.API_BASE_URL }}
+          --dart-define=BASE_APP_VERSION=${{ env.BASE_APP_VERSION }}
 
