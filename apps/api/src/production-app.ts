@@ -27,7 +27,8 @@ export function createProductionApp() {
       const result = await database.execute(sql`
         with cleanup as (
           delete from api_rate_limits
-          where window_started_at < now() - interval '1 day'
+          where key <> ${`planner:${userId}`}
+            and window_started_at < now() - interval '1 day'
         )
         insert into api_rate_limits (key, window_started_at, request_count)
         values (${`planner:${userId}`}, date_trunc('minute', now()), 1)
@@ -66,18 +67,12 @@ export function createProductionApp() {
         } | undefined) ?? null;
       },
       upsert: async (userId, state) => {
+        await database.execute(sql`
+          insert into profiles (auth_user_id)
+          values (${userId})
+          on conflict (auth_user_id) do nothing
+        `);
         const result = await database.execute(sql`
-          with inserted_profile as (
-            insert into profiles (auth_user_id)
-            values (${userId})
-            on conflict (auth_user_id) do nothing
-            returning id
-          ), ensured_profile as (
-            select id from inserted_profile
-            union all
-            select id from profiles where auth_user_id = ${userId}
-            limit 1
-          )
           insert into planner_states (
             profile_id, weekly_schedule, recovery_hours, today_workout,
             suggestion_accepted, updated_at
@@ -85,7 +80,7 @@ export function createProductionApp() {
           select id, ${JSON.stringify(state.weeklySchedule)}::jsonb,
             ${state.recoveryHours}, ${state.todayWorkout},
             ${state.suggestionAccepted}, now()
-          from ensured_profile
+          from profiles where auth_user_id = ${userId}
           on conflict (profile_id) do update set
             weekly_schedule = excluded.weekly_schedule,
             recovery_hours = excluded.recovery_hours,

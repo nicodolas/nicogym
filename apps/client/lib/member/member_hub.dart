@@ -202,20 +202,18 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final state = await widget.repository!.load() ?? PlannerState.defaults;
+      final result = await widget.repository!.load();
+      final state = result.state ?? PlannerState.defaults;
       if (!mounted) return;
       setState(() {
         _weeklySchedule = state.weeklySchedule;
         _recoveryHours = state.recoveryHours.toDouble();
         _todayWorkout = state.todayWorkout;
         _suggestionAccepted = state.suggestionAccepted;
-        final offline =
-            widget.repository is CachedPlannerRepository &&
-            (widget.repository! as CachedPlannerRepository).usedOfflineFallback;
-        _syncError = offline
+        _syncError = result.usedOfflineFallback
             ? 'Đang dùng lịch đã lưu trên thiết bị. Chạm để đồng bộ lại.'
             : null;
-        _retryLoad = offline;
+        _retryLoad = result.usedOfflineFallback;
       });
     } catch (_) {
       if (mounted) {

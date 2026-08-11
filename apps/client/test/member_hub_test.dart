@@ -169,7 +169,7 @@ class _MemoryPlannerRepository implements PlannerRepository {
   PlannerState? saved;
 
   @override
-  Future<PlannerState?> load() async => initial;
+  Future<PlannerLoadResult> load() async => PlannerLoadResult(state: initial);
 
   @override
   Future<PlannerState> save(PlannerState state) async => saved = state;

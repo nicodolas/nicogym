@@ -35,8 +35,8 @@ void main() {
 
     final state = await api.load();
     expect(captured.headers['authorization'], 'Bearer session-token');
-    expect(state?.weeklySchedule.single.day, 1);
-    expect(state?.recoveryHours, 48);
+    expect(state.state?.weeklySchedule.single.day, 1);
+    expect(state.state?.recoveryHours, 48);
   });
 
   test('saves the complete planner state', () async {
@@ -104,8 +104,9 @@ void main() {
       cache: cache,
     );
 
-    expect((await repository.load())?.todayWorkout, 'Chân + Mông');
-    expect(repository.usedOfflineFallback, isTrue);
+    final result = await repository.load();
+    expect(result.state?.todayWorkout, 'Chân + Mông');
+    expect(result.usedOfflineFallback, isTrue);
     repository.close();
   });
 }

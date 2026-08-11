@@ -88,8 +88,17 @@ class PlannerState {
 }
 
 abstract interface class PlannerRepository {
-  Future<PlannerState?> load();
+  Future<PlannerLoadResult> load();
   Future<PlannerState> save(PlannerState state);
+}
+
+class PlannerLoadResult {
+  const PlannerLoadResult({
+    required this.state,
+    this.usedOfflineFallback = false,
+  });
+  final PlannerState? state;
+  final bool usedOfflineFallback;
 }
 
 abstract interface class PlannerCache {
@@ -148,32 +157,35 @@ class CachedPlannerRepository implements PlannerRepository {
   final PlannerCache cache;
   int _activeOperations = 0;
   Completer<void>? _idleCompleter;
-  bool usedOfflineFallback = false;
 
   @override
-  Future<PlannerState?> load() async {
+  Future<PlannerLoadResult> load() async {
     _beginOperation();
-    usedOfflineFallback = false;
     try {
       final cached = await cache.read();
       if (cached?.dirty ?? false) {
         try {
           final synced = await remote.save(cached!.state);
           await cache.write(synced, dirty: false);
-          return synced;
+          return PlannerLoadResult(state: synced);
         } catch (_) {
-          usedOfflineFallback = true;
-          return cached!.state;
+          return PlannerLoadResult(
+            state: cached!.state,
+            usedOfflineFallback: true,
+          );
         }
       }
-      final state = await remote.load();
+      final remoteResult = await remote.load();
+      final state = remoteResult.state;
       if (state != null) await cache.write(state, dirty: false);
-      return state ?? cached?.state;
+      return PlannerLoadResult(state: state ?? cached?.state);
     } catch (_) {
       final cached = await cache.read();
       if (cached != null) {
-        usedOfflineFallback = true;
-        return cached.state;
+        return PlannerLoadResult(
+          state: cached.state,
+          usedOfflineFallback: true,
+        );
       }
       rethrow;
     } finally {
@@ -223,7 +235,7 @@ class PlannerApi implements PlannerRepository {
   static const _timeout = Duration(seconds: 12);
 
   @override
-  Future<PlannerState?> load() async {
+  Future<PlannerLoadResult> load() async {
     final http.Response response;
     try {
       response = await _client
@@ -234,10 +246,10 @@ class PlannerApi implements PlannerRepository {
     }
     final payload = await _decode(response);
     final data = payload['data'];
-    if (data == null) return null;
+    if (data == null) return const PlannerLoadResult(state: null);
     try {
       if (data is! Map<String, dynamic>) throw const FormatException();
-      return PlannerState.fromJson(data);
+      return PlannerLoadResult(state: PlannerState.fromJson(data));
     } on FormatException {
       throw const AuthException('Máy chủ trả về dữ liệu không hợp lệ.');
     }
