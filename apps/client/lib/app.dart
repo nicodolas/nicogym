@@ -296,7 +296,7 @@ class _WorkoutLoaderScreenState extends State<_WorkoutLoaderScreen> {
   );
 }
 
-class _Header extends StatelessWidget {
+class _Header extends StatefulWidget {
   const _Header({
     required this.apkDownloadUrl,
     required this.apiBaseUrl,
@@ -308,6 +308,26 @@ class _Header extends StatelessWidget {
   final String apiBaseUrl;
   final Future<List<Exercise>> Function() exerciseLoader;
   final TokenStore? tokenStore;
+
+  @override
+  State<_Header> createState() => _HeaderState();
+}
+
+class _HeaderState extends State<_Header> {
+  late final TokenStore _tokenStore;
+  bool _authenticated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tokenStore = widget.tokenStore ?? SecureTokenStore();
+    _refreshAuthentication();
+  }
+
+  Future<void> _refreshAuthentication() async {
+    final authenticated = (await _tokenStore.read())?.isNotEmpty ?? false;
+    if (mounted) setState(() => _authenticated = authenticated);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -326,7 +346,7 @@ class _Header extends StatelessWidget {
         if (MediaQuery.sizeOf(context).width >= 430)
           Text('NICOGYM', style: Theme.of(context).textTheme.titleLarge),
         const Spacer(),
-        if (apkDownloadUrl.isNotEmpty)
+        if (widget.apkDownloadUrl.isNotEmpty)
           IconButton(
             tooltip: 'Tải Android',
             onPressed: () => _downloadApk(context),
@@ -338,49 +358,43 @@ class _Header extends StatelessWidget {
           icon: const Icon(Icons.grid_view_rounded),
         ),
         IconButton(
-          tooltip: 'Tài khoản',
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => AuthScreen(
-                authApi: AuthApi(
-                  baseUrl: Uri.parse(apiBaseUrl),
-                  tokenStore: SecureTokenStore(),
-                ),
-              ),
-            ),
+          tooltip: _authenticated ? 'Đã đăng nhập' : 'Tài khoản',
+          onPressed: () => _openAccount(context),
+          icon: Icon(
+            _authenticated ? Icons.account_circle : Icons.person_outline,
           ),
-          icon: const Icon(Icons.person_outline),
         ),
       ],
     );
   }
 
   Future<void> _openMemberHub(BuildContext context) async {
-    final authTokenStore = tokenStore ?? SecureTokenStore();
+    final authTokenStore = _tokenStore;
     var authenticated = (await authTokenStore.read())?.isNotEmpty ?? false;
     if (!authenticated && context.mounted) {
       await Navigator.of(context).push<bool>(
         MaterialPageRoute<bool>(
           builder: (_) => AuthScreen(
             authApi: AuthApi(
-              baseUrl: Uri.parse(apiBaseUrl),
+              baseUrl: Uri.parse(widget.apiBaseUrl),
               tokenStore: authTokenStore,
             ),
           ),
         ),
       );
       authenticated = (await authTokenStore.read())?.isNotEmpty ?? false;
+      if (mounted) setState(() => _authenticated = authenticated);
     }
     if (!authenticated || !context.mounted) return;
     final plannerRepository = CachedPlannerRepository(
       remote: PlannerApi(
-        baseUrl: Uri.parse(apiBaseUrl),
+        baseUrl: Uri.parse(widget.apiBaseUrl),
         tokenStore: authTokenStore,
       ),
       cache: SecurePlannerCache(),
     );
     final catalogApi = CatalogApi(
-      baseUrl: Uri.parse(apiBaseUrl),
+      baseUrl: Uri.parse(widget.apiBaseUrl),
       tokenStore: authTokenStore,
     );
     try {
@@ -394,7 +408,7 @@ class _Header extends StatelessWidget {
               } catch (_) {
                 // The curated bundled catalog keeps the member experience usable offline.
               }
-              return exerciseLoader();
+              return widget.exerciseLoader();
             },
             plannerRepository: plannerRepository,
             catalogRepository: catalogApi,
@@ -413,9 +427,38 @@ class _Header extends StatelessWidget {
     }
   }
 
+  Future<void> _openAccount(BuildContext context) async {
+    if (!_authenticated) {
+      await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => AuthScreen(
+            authApi: AuthApi(
+              baseUrl: Uri.parse(widget.apiBaseUrl),
+              tokenStore: _tokenStore,
+            ),
+          ),
+        ),
+      );
+      await _refreshAuthentication();
+      return;
+    }
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => _AccountStatusScreen(
+          onSignOut: () async {
+            await _tokenStore.clear();
+            if (mounted) setState(() => _authenticated = false);
+          },
+        ),
+      ),
+    );
+    await _refreshAuthentication();
+  }
+
   Future<void> _downloadApk(BuildContext context) async {
     final launched = await launchUrl(
-      Uri.parse(apkDownloadUrl),
+      Uri.parse(widget.apkDownloadUrl),
       mode: LaunchMode.externalApplication,
     );
     if (!launched && context.mounted) {
@@ -423,6 +466,57 @@ class _Header extends StatelessWidget {
         const SnackBar(content: Text('Không mở được liên kết tải APK.')),
       );
     }
+  }
+}
+
+class _AccountStatusScreen extends StatelessWidget {
+  const _AccountStatusScreen({required this.onSignOut});
+
+  final Future<void> Function() onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('TÀI KHOẢN')),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(Icons.verified_user, size: 56, color: _ink),
+                  const SizedBox(height: 20),
+                  Text(
+                    'ĐÃ ĐĂNG NHẬP',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Lịch tập, tiến độ và quyền quản trị đang dùng phiên tài khoản này.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: _muted),
+                  ),
+                  const SizedBox(height: 28),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await onSignOut();
+                      if (context.mounted) Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Đăng xuất'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

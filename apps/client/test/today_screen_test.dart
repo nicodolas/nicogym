@@ -192,6 +192,28 @@ void main() {
     expect(find.text('TẠO TÀI KHOẢN'), findsOneWidget);
   });
 
+  testWidgets('shows account status instead of login when signed in', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    final tokenStore = _TestTokenStore('signed-session-token');
+    await tester.pumpWidget(NicoGymApp(memberTokenStore: tokenStore));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Đã đăng nhập'), findsOneWidget);
+    await tester.tap(find.byTooltip('Đã đăng nhập'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ĐÃ ĐĂNG NHẬP'), findsOneWidget);
+    expect(find.text('Đăng nhập lại'), findsNothing);
+
+    await tester.tap(find.text('Đăng xuất'));
+    await tester.pumpAndSettle();
+
+    expect(tokenStore.token, isNull);
+    expect(find.byTooltip('Tài khoản'), findsOneWidget);
+  });
+
   testWidgets('opens the full member library for a signed-in user', (
     tester,
   ) async {
