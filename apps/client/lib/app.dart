@@ -1,19 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:nicogym/app/app_theme.dart';
 import 'package:nicogym/auth/auth_api.dart';
 import 'package:nicogym/admin/catalog_api.dart';
 import 'package:nicogym/auth/auth_screen.dart';
+import 'package:nicogym/features/account/account_status_screen.dart';
 import 'package:nicogym/member/member_hub.dart';
 import 'package:nicogym/member/planner_api.dart';
 import 'package:nicogym/help/context_help.dart';
 import 'package:nicogym/workouts/exercise.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
-
-const _ink = Color(0xFF111310);
-const _paper = Color(0xFFF1F0E9);
-const _lime = Color(0xFFC7F36B);
-const _muted = Color(0xFF74786E);
 
 class NicoGymApp extends StatelessWidget {
   const NicoGymApp({
@@ -44,53 +41,7 @@ class NicoGymApp extends StatelessWidget {
     return MaterialApp(
       title: 'NicoGym',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: _paper,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: _lime,
-          brightness: Brightness.light,
-          surface: _paper,
-        ),
-        textTheme: const TextTheme(
-          displayLarge: TextStyle(
-            fontFamily: 'BarlowCondensed',
-            fontFamilyFallback: ['NotoSans'],
-            fontSize: 64,
-            height: .86,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1.5,
-          ),
-          headlineLarge: TextStyle(
-            fontFamily: 'BarlowCondensed',
-            fontFamilyFallback: ['NotoSans'],
-            fontSize: 38,
-            height: .95,
-            fontWeight: FontWeight.w800,
-          ),
-          titleLarge: TextStyle(
-            fontFamily: 'BarlowCondensed',
-            fontFamilyFallback: ['NotoSans'],
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-          ),
-          bodyLarge: TextStyle(
-            fontFamily: 'Barlow',
-            fontFamilyFallback: ['NotoSans'],
-            fontSize: 16,
-          ),
-          bodyMedium: TextStyle(
-            fontFamily: 'Barlow',
-            fontFamilyFallback: ['NotoSans'],
-            fontSize: 14,
-          ),
-          labelLarge: TextStyle(
-            fontFamily: 'Barlow',
-            fontFamilyFallback: ['NotoSans'],
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
+      theme: buildNicoGymTheme(),
       home: TodayScreen(
         showRecoverySuggestion: showRecoverySuggestion,
         apkDownloadUrl: apkDownloadUrl,
@@ -163,7 +114,7 @@ class TodayScreen extends StatelessWidget {
                             child: Text(
                               'v$baseAppVersion',
                               style: const TextStyle(
-                                color: _muted,
+                                color: NicoGymColors.muted,
                                 fontSize: 12,
                               ),
                             ),
@@ -187,8 +138,8 @@ class TodayScreen extends StatelessWidget {
             child: FilledButton.icon(
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(60),
-                backgroundColor: _ink,
-                foregroundColor: _paper,
+                backgroundColor: NicoGymColors.ink,
+                foregroundColor: NicoGymColors.paper,
                 shape: const RoundedRectangleBorder(),
               ),
               onPressed: () => Navigator.of(context).push(
@@ -467,7 +418,7 @@ class _HeaderState extends State<_Header> {
 
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => _AccountStatusScreen(
+        builder: (_) => AccountStatusScreen(
           onSignOut: () async {
             await _tokenStore.clear();
             if (mounted) setState(() => _authenticated = false);
@@ -491,57 +442,6 @@ class _HeaderState extends State<_Header> {
   }
 }
 
-class _AccountStatusScreen extends StatelessWidget {
-  const _AccountStatusScreen({required this.onSignOut});
-
-  final Future<void> Function() onSignOut;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('TÀI KHOẢN')),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Icon(Icons.verified_user, size: 56, color: _ink),
-                  const SizedBox(height: 20),
-                  Text(
-                    'ĐÃ ĐĂNG NHẬP',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Lịch tập, tiến độ và quyền quản trị đang dùng phiên tài khoản này.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: _muted),
-                  ),
-                  const SizedBox(height: 28),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      await onSignOut();
-                      if (context.mounted) Navigator.pop(context);
-                    },
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Đăng xuất'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _TodayHero extends StatelessWidget {
   const _TodayHero({required this.compact});
 
@@ -557,12 +457,16 @@ class _TodayHero extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.calendar_today_outlined, size: 16, color: _lime),
+              const Icon(
+                Icons.calendar_today_outlined,
+                size: 16,
+                color: NicoGymColors.lime,
+              ),
               const SizedBox(width: 8),
               Text(
                 'HÔM NAY',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: _paper,
+                  color: NicoGymColors.paper,
                   letterSpacing: 1.1,
                 ),
               ),
@@ -578,7 +482,7 @@ class _TodayHero extends StatelessWidget {
             'CHÂN + MÔNG',
             maxLines: 1,
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
-              color: _paper,
+              color: NicoGymColors.paper,
               fontSize: compact ? 54 : 70,
             ),
           ),
@@ -605,7 +509,7 @@ class _TodayHero extends StatelessWidget {
       height: compact ? 360 : 300,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: _ink,
+        color: NicoGymColors.ink,
         borderRadius: BorderRadius.circular(22),
       ),
       child: compact
@@ -639,7 +543,7 @@ class _ReadinessStrip extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: .65),
-          border: Border.all(color: _ink.withValues(alpha: .09)),
+          border: Border.all(color: NicoGymColors.ink.withValues(alpha: .09)),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -668,7 +572,9 @@ class _ReadinessStrip extends StatelessWidget {
                     child: Container(
                       height: 7,
                       margin: const EdgeInsets.only(right: 4),
-                      color: ready ? _ink : _ink.withValues(alpha: .14),
+                      color: ready
+                          ? NicoGymColors.ink
+                          : NicoGymColors.ink.withValues(alpha: .14),
                     ),
                   ),
               ],
@@ -678,8 +584,14 @@ class _ReadinessStrip extends StatelessWidget {
               spacing: 14,
               runSpacing: 4,
               children: [
-                Text('3/5 nhóm cơ sẵn sàng', style: TextStyle(color: _muted)),
-                Text('Nghỉ đủ 48 giờ', style: TextStyle(color: _muted)),
+                Text(
+                  '3/5 nhóm cơ sẵn sàng',
+                  style: TextStyle(color: NicoGymColors.muted),
+                ),
+                Text(
+                  'Nghỉ đủ 48 giờ',
+                  style: TextStyle(color: NicoGymColors.muted),
+                ),
               ],
             ),
           ],
@@ -698,7 +610,7 @@ class _SuggestionNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(color: _lime),
+      decoration: const BoxDecoration(color: NicoGymColors.lime),
       child: Row(
         children: [
           const Expanded(child: Text('Lịch hiện tại vẫn được giữ')),
@@ -730,7 +642,7 @@ class _WorkoutOverviewState extends State<_WorkoutOverview> {
           children: [
             Text('BÀI TẬP', style: Theme.of(context).textTheme.titleLarge),
             const Spacer(),
-            const Text('12 HIỆP', style: TextStyle(color: _muted)),
+            const Text('12 HIỆP', style: TextStyle(color: NicoGymColors.muted)),
           ],
         ),
         const SizedBox(height: 8),
@@ -800,7 +712,7 @@ class _ExerciseCard extends StatelessWidget {
     child: Material(
       color: Colors.white.withValues(alpha: .56),
       shape: RoundedRectangleBorder(
-        side: BorderSide(color: _ink.withValues(alpha: .08)),
+        side: BorderSide(color: NicoGymColors.ink.withValues(alpha: .08)),
         borderRadius: BorderRadius.circular(14),
       ),
       clipBehavior: Clip.antiAlias,
@@ -819,7 +731,7 @@ class _ExerciseCard extends StatelessWidget {
                 width: 38,
                 child: Text(
                   '${index + 1}'.padLeft(2, '0'),
-                  style: const TextStyle(color: _muted),
+                  style: const TextStyle(color: NicoGymColors.muted),
                 ),
               ),
               Expanded(
@@ -833,14 +745,20 @@ class _ExerciseCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       exercise.primaryMuscles.join(' · '),
-                      style: const TextStyle(color: _muted, fontSize: 12),
+                      style: const TextStyle(
+                        color: NicoGymColors.muted,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
               ),
               Text(exercise.prescription),
               const SizedBox(width: 4),
-              const Icon(Icons.chevron_right_rounded, color: _muted),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: NicoGymColors.muted,
+              ),
             ],
           ),
         ),
@@ -963,7 +881,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => Container(
                           height: 220,
-                          color: _ink.withValues(alpha: .06),
+                          color: NicoGymColors.ink.withValues(alpha: .06),
                           alignment: Alignment.center,
                           child: const Icon(Icons.image_not_supported_outlined),
                         ),
@@ -982,7 +900,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   const SizedBox(height: 6),
                   const Text(
                     'Video phát ngay trong NicoGym · YouTube privacy-enhanced mode',
-                    style: TextStyle(color: _muted, fontSize: 12),
+                    style: TextStyle(color: NicoGymColors.muted, fontSize: 12),
                   ),
                 ],
                 const SizedBox(height: 28),
@@ -1076,8 +994,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                 FilledButton(
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(58),
-                    backgroundColor: _lime,
-                    foregroundColor: _ink,
+                    backgroundColor: NicoGymColors.lime,
+                    foregroundColor: NicoGymColors.ink,
                     shape: const RoundedRectangleBorder(),
                   ),
                   onPressed: _logSet,
@@ -1156,7 +1074,7 @@ class _GuideSection extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: highlight
-                  ? _lime.withValues(alpha: .35)
+                  ? NicoGymColors.lime.withValues(alpha: .35)
                   : Colors.white.withValues(alpha: .48),
               borderRadius: BorderRadius.circular(10),
             ),
