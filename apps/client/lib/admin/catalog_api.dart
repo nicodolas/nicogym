@@ -42,6 +42,7 @@ class CatalogApi implements CatalogRepository {
   final Uri baseUrl;
   final TokenStore tokenStore;
   final http.Client _client;
+  final Set<Future<void>> _pendingRequests = {};
   static const _timeout = Duration(seconds: 15);
 
   @override
@@ -89,14 +90,19 @@ class CatalogApi implements CatalogRepository {
     });
   }
 
-  Future<Map<String, dynamic>> _get(String path) async {
+  Future<Map<String, dynamic>> _get(String path) => _track(_requestGet(path));
+
+  Future<Map<String, dynamic>> _requestGet(String path) async {
     final response = await _client
         .get(baseUrl.resolve(path), headers: await _headers())
         .timeout(_timeout);
     return _decode(response);
   }
 
-  Future<Map<String, dynamic>> _post(
+  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) =>
+      _track(_requestPost(path, body));
+
+  Future<Map<String, dynamic>> _requestPost(
     String path,
     Map<String, dynamic> body,
   ) async {
@@ -144,6 +150,21 @@ class CatalogApi implements CatalogRepository {
     }
     if (payload == null) throw const FormatException();
     return payload;
+  }
+
+  Future<T> _track<T>(Future<T> request) {
+    late final Future<void> completion;
+    completion = request
+        .then<void>((_) {}, onError: (_, _) {})
+        .whenComplete(() => _pendingRequests.remove(completion));
+    _pendingRequests.add(completion);
+    return request;
+  }
+
+  Future<void> whenIdle() async {
+    while (_pendingRequests.isNotEmpty) {
+      await Future.wait(_pendingRequests.toList(growable: false));
+    }
   }
 
   void close() => _client.close();

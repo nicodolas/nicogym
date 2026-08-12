@@ -30,6 +30,7 @@ class TodayHeader extends StatefulWidget {
 class _TodayHeaderState extends State<TodayHeader> {
   late final TokenStore _tokenStore;
   bool _authenticated = false;
+  bool _navigationInFlight = false;
   Future<bool>? _authenticationRead;
 
   @override
@@ -88,18 +89,32 @@ class _TodayHeaderState extends State<TodayHeader> {
           ),
         IconButton(
           tooltip: 'Thư viện và lịch tập',
-          onPressed: () => _openMemberHub(context),
+          onPressed: _navigationInFlight
+              ? null
+              : () => _navigate(() => _openMemberHub(context)),
           icon: const Icon(Icons.grid_view_rounded),
         ),
         IconButton(
           tooltip: _authenticated ? 'Đã đăng nhập' : 'Tài khoản',
-          onPressed: () => _openAccount(context),
+          onPressed: _navigationInFlight
+              ? null
+              : () => _navigate(() => _openAccount(context)),
           icon: Icon(
             _authenticated ? Icons.account_circle : Icons.person_outline,
           ),
         ),
       ],
     );
+  }
+
+  Future<void> _navigate(Future<void> Function() action) async {
+    if (_navigationInFlight) return;
+    setState(() => _navigationInFlight = true);
+    try {
+      await action();
+    } finally {
+      if (mounted) setState(() => _navigationInFlight = false);
+    }
   }
 
   Future<void> _openMemberHub(BuildContext context) async {
@@ -155,6 +170,7 @@ class _TodayHeaderState extends State<TodayHeader> {
       );
     } finally {
       await plannerRepository.whenIdle();
+      await catalogApi.whenIdle();
       plannerRepository.close();
       catalogApi.close();
       await _refreshAuthentication();

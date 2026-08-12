@@ -102,6 +102,26 @@ void main() {
     expect(find.text('ĐĂNG NHẬP'), findsNothing);
   });
 
+  testWidgets('coalesces rapid account taps into one navigation', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    final tokenStore = _DelayedTokenStore(null);
+    await tester.pumpWidget(NicoGymApp(memberTokenStore: tokenStore));
+
+    await tester.tap(find.byTooltip('Tài khoản'));
+    await tester.tap(find.byTooltip('Tài khoản'));
+    tokenStore.completeReads();
+    await tester.pumpAndSettle();
+
+    expect(find.text('ĐĂNG NHẬP'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.text('ĐĂNG NHẬP'), findsNothing);
+    expect(find.text('HÔM NAY'), findsOneWidget);
+  });
+
   testWidgets('secure storage read failures degrade to signed out', (
     tester,
   ) async {
