@@ -25,7 +25,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   void initState() {
     super.initState();
     final videoId = widget.exercise.videoId;
-    if (videoId != null) {
+    if (videoId != null && videoId.isNotEmpty) {
       _videoController = YoutubePlayerController.fromVideoId(
         videoId: videoId,
         autoPlay: false,
@@ -50,7 +50,18 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   void _logSet() {
     final load = double.tryParse(_loadController.text.replaceAll(',', '.'));
     final reps = int.tryParse(_repsController.text);
-    if (load == null || load < 0 || reps == null || reps < 1) return;
+    if (load == null ||
+        !load.isFinite ||
+        load < 0 ||
+        reps == null ||
+        reps < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tạ phải từ 0 kg và số lần phải là số nguyên dương.'),
+        ),
+      );
+      return;
+    }
     setState(
       () => _sets.add(
         '${load.toStringAsFixed(load % 1 == 0 ? 0 : 1)} kg × $reps',
@@ -107,7 +118,11 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   const SizedBox(height: 20),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(18),
-                    child: Image.asset(imageAsset, fit: BoxFit.cover),
+                    child: Image.asset(
+                      imageAsset,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _imageFallback(),
+                    ),
                   ),
                 ],
                 if (widget.exercise.imageAsset == null)
@@ -118,12 +133,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                       child: Image.network(
                         imageUrl,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
-                          height: 220,
-                          color: NicoGymColors.ink.withValues(alpha: .06),
-                          alignment: Alignment.center,
-                          child: const Icon(Icons.image_not_supported_outlined),
-                        ),
+                        errorBuilder: (_, _, _) => _imageFallback(),
                       ),
                     ),
                   ],
@@ -225,6 +235,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                         keyName: 'reps-input',
                         label: 'LẦN',
                         controller: _repsController,
+                        decimal: false,
                       ),
                     ),
                   ],
@@ -257,11 +268,13 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   }
 
   Future<void> _openLink(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.scheme != 'https') {
+      if (mounted) _showLinkError();
+      return;
+    }
     try {
-      final opened = await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
-      );
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!opened && mounted) _showLinkError();
     } on PlatformException {
       if (mounted) _showLinkError();
@@ -273,6 +286,13 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       const SnackBar(content: Text('Không thể mở liên kết lúc này.')),
     );
   }
+
+  Widget _imageFallback() => Container(
+    height: 220,
+    color: NicoGymColors.ink.withValues(alpha: .06),
+    alignment: Alignment.center,
+    child: const Icon(Icons.image_not_supported_outlined),
+  );
 }
 
 class _GuideSection extends StatelessWidget {
@@ -291,46 +311,52 @@ class _GuideSection extends StatelessWidget {
   final bool highlight;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 24),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 20),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(title, style: Theme.of(context).textTheme.titleLarge),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        for (final entry in items.indexed)
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: highlight
-                  ? NicoGymColors.lime.withValues(alpha: .35)
-                  : Colors.white.withValues(alpha: .48),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 24,
-                  child: Text(numbered ? '${entry.$1 + 1}.' : '•'),
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-                Expanded(child: Text(entry.$2)),
-              ],
-            ),
+              ),
+            ],
           ),
-      ],
-    ),
-  );
+          const SizedBox(height: 10),
+          for (final entry in items.indexed)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: highlight
+                    ? NicoGymColors.lime.withValues(alpha: .35)
+                    : Colors.white.withValues(alpha: .48),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 24,
+                    child: Text(numbered ? '${entry.$1 + 1}.' : '•'),
+                  ),
+                  Expanded(child: Text(entry.$2)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _MetricInput extends StatelessWidget {
@@ -338,18 +364,20 @@ class _MetricInput extends StatelessWidget {
     required this.keyName,
     required this.label,
     required this.controller,
+    this.decimal = true,
   });
 
   final String keyName;
   final String label;
   final TextEditingController controller;
+  final bool decimal;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       key: Key(keyName),
       controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      keyboardType: TextInputType.numberWithOptions(decimal: decimal),
       style: Theme.of(context).textTheme.headlineLarge,
       decoration: InputDecoration(
         labelText: label,
