@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Lock current component behavior
+## Task 1: Lock current component behavior
 
 **Files:**
 - Modify: `apps/client/test/today_screen_test.dart`
@@ -22,7 +22,7 @@
 3. Run the focused tests and confirm they pass before moving production code.
 4. Commit only after the extracted tests pass.
 
-### Task 2: Extract shared presentation tokens
+## Task 2: Extract shared presentation tokens
 
 **Files:**
 - Create: `apps/client/lib/app/app_theme.dart`
@@ -32,7 +32,7 @@
 2. Keep the rendered typography, colors, spacing, and Material 3 configuration unchanged.
 3. Run `flutter analyze` and the Today widget test.
 
-### Task 3: Extract account and primary navigation header
+## Task 3: Extract account and primary navigation header
 
 **Files:**
 - Create: `apps/client/lib/features/account/account_status_screen.dart`
@@ -45,7 +45,7 @@
 3. Pass callbacks or existing repositories explicitly; do not create a service locator or global mutable state.
 4. Verify persisted sessions, delayed reads, throwing storage, logout, and Member Hub entry.
 
-### Task 4: Extract workout detail feature
+## Task 4: Extract workout detail feature
 
 **Files:**
 - Create: `apps/client/lib/features/workout/workout_screen.dart`
@@ -57,7 +57,7 @@
 3. Keep the public `WorkoutScreen(exercise:)` constructor stable for current callers.
 4. Run focused workout tests.
 
-### Task 5: Verify the behavior-preserving refactor
+## Task 5: Verify the behavior-preserving refactor
 
 **Files:**
 - Review: all files changed in Tasks 1–4
@@ -69,7 +69,7 @@
 5. Run `git diff --check` and review the diff for dependencies, secrets, generated artifacts, and accidental UI changes.
 6. Commit with the repository Lore trailers and deliver through the PR review loop.
 
-### Out of scope
+## Out of scope
 
 - Workout-session persistence, planner schema changes, recommendations, progress history, new dependencies, version bumps, and visual redesign.
 - These belong to A2 after the feature boundaries are stable.
