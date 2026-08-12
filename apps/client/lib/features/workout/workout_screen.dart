@@ -50,15 +50,15 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   void _logSet() {
     final load = double.tryParse(_loadController.text.replaceAll(',', '.'));
     final reps = int.tryParse(_repsController.text);
-    if (load == null ||
-        !load.isFinite ||
-        load < 0 ||
-        reps == null ||
-        reps < 1) {
+    if (load == null || !load.isFinite || load < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tạ phải từ 0 kg và số lần phải là số nguyên dương.'),
-        ),
+        const SnackBar(content: Text('Mức tạ phải là một số từ 0 kg trở lên.')),
+      );
+      return;
+    }
+    if (reps == null || reps < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Số lần phải là một số nguyên dương.')),
       );
       return;
     }
