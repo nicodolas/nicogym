@@ -325,7 +325,7 @@ class _HeaderState extends State<_Header> {
     _refreshAuthentication();
   }
 
-  Future<void> _refreshAuthentication() async {
+  Future<bool> _refreshAuthentication() async {
     final generation = ++_authenticationReadGeneration;
     var authenticated = false;
     try {
@@ -336,6 +336,7 @@ class _HeaderState extends State<_Header> {
     if (mounted && generation == _authenticationReadGeneration) {
       setState(() => _authenticated = authenticated);
     }
+    return authenticated;
   }
 
   @override
@@ -379,7 +380,7 @@ class _HeaderState extends State<_Header> {
 
   Future<void> _openMemberHub(BuildContext context) async {
     final authTokenStore = _tokenStore;
-    var authenticated = (await authTokenStore.read())?.isNotEmpty ?? false;
+    var authenticated = await _refreshAuthentication();
     if (!authenticated && context.mounted) {
       await Navigator.of(context).push<bool>(
         MaterialPageRoute<bool>(
@@ -391,8 +392,7 @@ class _HeaderState extends State<_Header> {
           ),
         ),
       );
-      authenticated = (await authTokenStore.read())?.isNotEmpty ?? false;
-      if (mounted) setState(() => _authenticated = authenticated);
+      authenticated = await _refreshAuthentication();
     }
     if (!authenticated || !context.mounted) return;
     final plannerRepository = CachedPlannerRepository(

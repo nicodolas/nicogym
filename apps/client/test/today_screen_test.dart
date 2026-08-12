@@ -249,6 +249,22 @@ void main() {
     expect(find.byTooltip('Tài khoản'), findsOneWidget);
   });
 
+  testWidgets('member navigation handles secure storage read failures', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    await tester.pumpWidget(
+      NicoGymApp(memberTokenStore: _ThrowingTokenStore()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Thư viện và lịch tập'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('ĐĂNG NHẬP'), findsOneWidget);
+  });
+
   testWidgets('opens the full member library for a signed-in user', (
     tester,
   ) async {
