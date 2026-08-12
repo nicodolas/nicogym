@@ -32,23 +32,30 @@ void main() {
     expect(client.closed, isTrue);
   });
 
-  test('times out when token storage never responds', () async {
+  test('a timed-out token read cannot start a later request', () async {
+    final tokenStore = _SlowTokenStore();
+    final client = _DelayedClient();
     final api = CatalogApi(
       baseUrl: Uri.parse('https://example.com'),
-      tokenStore: _HangingTokenStore(),
-      client: _DelayedClient(),
+      tokenStore: tokenStore,
+      client: client,
       requestTimeout: const Duration(milliseconds: 10),
     );
 
     await expectLater(api.loadExercises(), throwsA(isA<TimeoutException>()));
     await api.whenIdle();
     api.close();
+    tokenStore.complete('late-token');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(client.sendCount, 0);
   });
 }
 
 class _DelayedClient extends http.BaseClient {
   final _response = Completer<http.StreamedResponse>();
   bool closed = false;
+  int sendCount = 0;
 
   void complete(Map<String, Object> payload) {
     _response.complete(
@@ -61,8 +68,10 @@ class _DelayedClient extends http.BaseClient {
   }
 
   @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) =>
-      _response.future;
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    sendCount += 1;
+    return _response.future;
+  }
 
   @override
   void close() {
@@ -82,12 +91,16 @@ class _TokenStore implements TokenStore {
   Future<void> write(String value) async {}
 }
 
-class _HangingTokenStore implements TokenStore {
+class _SlowTokenStore implements TokenStore {
+  final _token = Completer<String?>();
+
+  void complete(String value) => _token.complete(value);
+
   @override
   Future<void> clear() async {}
 
   @override
-  Future<String?> read() => Completer<String?>().future;
+  Future<String?> read() => _token.future;
 
   @override
   Future<void> write(String value) async {}

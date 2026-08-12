@@ -34,6 +34,7 @@ class _TodayHeaderState extends State<TodayHeader> {
   bool _authenticated = false;
   bool _navigationInFlight = false;
   Future<bool>? _authenticationRead;
+  Future<void> _memberCleanup = Future<void>.value();
 
   @override
   void initState() {
@@ -120,6 +121,7 @@ class _TodayHeaderState extends State<TodayHeader> {
   }
 
   Future<void> _openMemberHub(BuildContext context) async {
+    await _memberCleanup;
     final authTokenStore = _tokenStore;
     var authenticated = await _refreshAuthentication();
     if (!authenticated && context.mounted) {
@@ -171,7 +173,8 @@ class _TodayHeaderState extends State<TodayHeader> {
         ),
       );
     } finally {
-      unawaited(_closeMemberResources(plannerRepository, catalogApi));
+      _memberCleanup = _closeMemberResources(plannerRepository, catalogApi);
+      unawaited(_memberCleanup);
       unawaited(_refreshAuthentication());
     }
   }
@@ -189,6 +192,7 @@ class _TodayHeaderState extends State<TodayHeader> {
   }
 
   Future<void> _openAccount(BuildContext context) async {
+    await _memberCleanup;
     await _refreshAuthentication();
     if (!context.mounted) return;
     if (!_authenticated) {

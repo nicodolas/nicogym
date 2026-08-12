@@ -94,12 +94,12 @@ class CatalogApi implements CatalogRepository {
   Future<Map<String, dynamic>> _get(String path) => _track(_requestGet(path));
 
   Future<Map<String, dynamic>> _requestGet(String path) async {
-    final response = await _sendGet(path).timeout(requestTimeout);
+    final headers = await _headers().timeout(requestTimeout);
+    final response = await _client
+        .get(baseUrl.resolve(path), headers: headers)
+        .timeout(requestTimeout);
     return _decode(response);
   }
-
-  Future<http.Response> _sendGet(String path) async =>
-      _client.get(baseUrl.resolve(path), headers: await _headers());
 
   Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) =>
       _track(_requestPost(path, body));
@@ -108,18 +108,12 @@ class CatalogApi implements CatalogRepository {
     String path,
     Map<String, dynamic> body,
   ) async {
-    final response = await _sendPost(path, body).timeout(requestTimeout);
+    final headers = await _headers(json: true).timeout(requestTimeout);
+    final response = await _client
+        .post(baseUrl.resolve(path), headers: headers, body: jsonEncode(body))
+        .timeout(requestTimeout);
     return _decode(response);
   }
-
-  Future<http.Response> _sendPost(
-    String path,
-    Map<String, dynamic> body,
-  ) async => _client.post(
-    baseUrl.resolve(path),
-    headers: await _headers(json: true),
-    body: jsonEncode(body),
-  );
 
   Future<Map<String, String>> _headers({bool json = false}) async {
     final token = await tokenStore.read();
