@@ -37,12 +37,14 @@ class CatalogApi implements CatalogRepository {
     required this.baseUrl,
     required this.tokenStore,
     http.Client? client,
+    this.requestTimeout = const Duration(seconds: 15),
   }) : _client = client ?? http.Client();
 
   final Uri baseUrl;
   final TokenStore tokenStore;
+  final Duration requestTimeout;
   final http.Client _client;
-  static const _timeout = Duration(seconds: 15);
+  final Set<Future<void>> _pendingRequests = {};
 
   @override
   Future<MemberIdentity> me() async {
@@ -89,24 +91,27 @@ class CatalogApi implements CatalogRepository {
     });
   }
 
-  Future<Map<String, dynamic>> _get(String path) async {
+  Future<Map<String, dynamic>> _get(String path) => _track(_requestGet(path));
+
+  Future<Map<String, dynamic>> _requestGet(String path) async {
+    final headers = await _headers().timeout(requestTimeout);
     final response = await _client
-        .get(baseUrl.resolve(path), headers: await _headers())
-        .timeout(_timeout);
+        .get(baseUrl.resolve(path), headers: headers)
+        .timeout(requestTimeout);
     return _decode(response);
   }
 
-  Future<Map<String, dynamic>> _post(
+  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) =>
+      _track(_requestPost(path, body));
+
+  Future<Map<String, dynamic>> _requestPost(
     String path,
     Map<String, dynamic> body,
   ) async {
+    final headers = await _headers(json: true).timeout(requestTimeout);
     final response = await _client
-        .post(
-          baseUrl.resolve(path),
-          headers: await _headers(json: true),
-          body: jsonEncode(body),
-        )
-        .timeout(_timeout);
+        .post(baseUrl.resolve(path), headers: headers, body: jsonEncode(body))
+        .timeout(requestTimeout);
     return _decode(response);
   }
 
@@ -144,6 +149,21 @@ class CatalogApi implements CatalogRepository {
     }
     if (payload == null) throw const FormatException();
     return payload;
+  }
+
+  Future<T> _track<T>(Future<T> request) {
+    late final Future<void> completion;
+    completion = request
+        .then<void>((_) {}, onError: (_, _) {})
+        .whenComplete(() => _pendingRequests.remove(completion));
+    _pendingRequests.add(completion);
+    return request;
+  }
+
+  Future<void> whenIdle() async {
+    while (_pendingRequests.isNotEmpty) {
+      await Future.wait(_pendingRequests.toList(growable: false));
+    }
   }
 
   void close() => _client.close();
