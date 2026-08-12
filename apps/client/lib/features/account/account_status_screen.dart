@@ -20,7 +20,11 @@ class AccountStatusScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.verified_user, size: 56, color: ink),
+                  const Icon(
+                    Icons.verified_user,
+                    size: 56,
+                    color: NicoGymColors.ink,
+                  ),
                   const SizedBox(height: 20),
                   Text(
                     'ĐÃ ĐĂNG NHẬP',
@@ -31,7 +35,7 @@ class AccountStatusScreen extends StatelessWidget {
                   const Text(
                     'Lịch tập, tiến độ và quyền quản trị đang dùng phiên tài khoản này.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: muted),
+                    style: TextStyle(color: NicoGymColors.muted),
                   ),
                   const SizedBox(height: 28),
                   OutlinedButton.icon(

@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 
-const ink = Color(0xFF111310);
-const paper = Color(0xFFF1F0E9);
-const lime = Color(0xFFC7F36B);
-const muted = Color(0xFF74786E);
+abstract final class NicoGymColors {
+  static const ink = Color(0xFF111310);
+  static const paper = Color(0xFFF1F0E9);
+  static const lime = Color(0xFFC7F36B);
+  static const muted = Color(0xFF74786E);
+}
 
 ThemeData buildNicoGymTheme() => ThemeData(
   useMaterial3: true,
-  scaffoldBackgroundColor: paper,
+  scaffoldBackgroundColor: NicoGymColors.paper,
   colorScheme: ColorScheme.fromSeed(
-    seedColor: lime,
+    seedColor: NicoGymColors.lime,
     brightness: Brightness.light,
-    surface: paper,
+    surface: NicoGymColors.paper,
   ),
   textTheme: const TextTheme(
     displayLarge: TextStyle(

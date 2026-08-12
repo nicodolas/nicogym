@@ -114,7 +114,7 @@ class TodayScreen extends StatelessWidget {
                             child: Text(
                               'v$baseAppVersion',
                               style: const TextStyle(
-                                color: muted,
+                                color: NicoGymColors.muted,
                                 fontSize: 12,
                               ),
                             ),
@@ -138,8 +138,8 @@ class TodayScreen extends StatelessWidget {
             child: FilledButton.icon(
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(60),
-                backgroundColor: ink,
-                foregroundColor: paper,
+                backgroundColor: NicoGymColors.ink,
+                foregroundColor: NicoGymColors.paper,
                 shape: const RoundedRectangleBorder(),
               ),
               onPressed: () => Navigator.of(context).push(
@@ -457,12 +457,16 @@ class _TodayHero extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.calendar_today_outlined, size: 16, color: lime),
+              const Icon(
+                Icons.calendar_today_outlined,
+                size: 16,
+                color: NicoGymColors.lime,
+              ),
               const SizedBox(width: 8),
               Text(
                 'HÔM NAY',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: paper,
+                  color: NicoGymColors.paper,
                   letterSpacing: 1.1,
                 ),
               ),
@@ -478,7 +482,7 @@ class _TodayHero extends StatelessWidget {
             'CHÂN + MÔNG',
             maxLines: 1,
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
-              color: paper,
+              color: NicoGymColors.paper,
               fontSize: compact ? 54 : 70,
             ),
           ),
@@ -505,7 +509,7 @@ class _TodayHero extends StatelessWidget {
       height: compact ? 360 : 300,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: ink,
+        color: NicoGymColors.ink,
         borderRadius: BorderRadius.circular(22),
       ),
       child: compact
@@ -539,7 +543,7 @@ class _ReadinessStrip extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: .65),
-          border: Border.all(color: ink.withValues(alpha: .09)),
+          border: Border.all(color: NicoGymColors.ink.withValues(alpha: .09)),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -568,7 +572,9 @@ class _ReadinessStrip extends StatelessWidget {
                     child: Container(
                       height: 7,
                       margin: const EdgeInsets.only(right: 4),
-                      color: ready ? ink : ink.withValues(alpha: .14),
+                      color: ready
+                          ? NicoGymColors.ink
+                          : NicoGymColors.ink.withValues(alpha: .14),
                     ),
                   ),
               ],
@@ -578,8 +584,14 @@ class _ReadinessStrip extends StatelessWidget {
               spacing: 14,
               runSpacing: 4,
               children: [
-                Text('3/5 nhóm cơ sẵn sàng', style: TextStyle(color: muted)),
-                Text('Nghỉ đủ 48 giờ', style: TextStyle(color: muted)),
+                Text(
+                  '3/5 nhóm cơ sẵn sàng',
+                  style: TextStyle(color: NicoGymColors.muted),
+                ),
+                Text(
+                  'Nghỉ đủ 48 giờ',
+                  style: TextStyle(color: NicoGymColors.muted),
+                ),
               ],
             ),
           ],
@@ -598,7 +610,7 @@ class _SuggestionNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(color: lime),
+      decoration: const BoxDecoration(color: NicoGymColors.lime),
       child: Row(
         children: [
           const Expanded(child: Text('Lịch hiện tại vẫn được giữ')),
@@ -630,7 +642,7 @@ class _WorkoutOverviewState extends State<_WorkoutOverview> {
           children: [
             Text('BÀI TẬP', style: Theme.of(context).textTheme.titleLarge),
             const Spacer(),
-            const Text('12 HIỆP', style: TextStyle(color: muted)),
+            const Text('12 HIỆP', style: TextStyle(color: NicoGymColors.muted)),
           ],
         ),
         const SizedBox(height: 8),
@@ -700,7 +712,7 @@ class _ExerciseCard extends StatelessWidget {
     child: Material(
       color: Colors.white.withValues(alpha: .56),
       shape: RoundedRectangleBorder(
-        side: BorderSide(color: ink.withValues(alpha: .08)),
+        side: BorderSide(color: NicoGymColors.ink.withValues(alpha: .08)),
         borderRadius: BorderRadius.circular(14),
       ),
       clipBehavior: Clip.antiAlias,
@@ -719,7 +731,7 @@ class _ExerciseCard extends StatelessWidget {
                 width: 38,
                 child: Text(
                   '${index + 1}'.padLeft(2, '0'),
-                  style: const TextStyle(color: muted),
+                  style: const TextStyle(color: NicoGymColors.muted),
                 ),
               ),
               Expanded(
@@ -733,14 +745,20 @@ class _ExerciseCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       exercise.primaryMuscles.join(' · '),
-                      style: const TextStyle(color: muted, fontSize: 12),
+                      style: const TextStyle(
+                        color: NicoGymColors.muted,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
               ),
               Text(exercise.prescription),
               const SizedBox(width: 4),
-              const Icon(Icons.chevron_right_rounded, color: muted),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: NicoGymColors.muted,
+              ),
             ],
           ),
         ),
@@ -863,7 +881,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => Container(
                           height: 220,
-                          color: ink.withValues(alpha: .06),
+                          color: NicoGymColors.ink.withValues(alpha: .06),
                           alignment: Alignment.center,
                           child: const Icon(Icons.image_not_supported_outlined),
                         ),
@@ -882,7 +900,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   const SizedBox(height: 6),
                   const Text(
                     'Video phát ngay trong NicoGym · YouTube privacy-enhanced mode',
-                    style: TextStyle(color: muted, fontSize: 12),
+                    style: TextStyle(color: NicoGymColors.muted, fontSize: 12),
                   ),
                 ],
                 const SizedBox(height: 28),
@@ -976,8 +994,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                 FilledButton(
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(58),
-                    backgroundColor: lime,
-                    foregroundColor: ink,
+                    backgroundColor: NicoGymColors.lime,
+                    foregroundColor: NicoGymColors.ink,
                     shape: const RoundedRectangleBorder(),
                   ),
                   onPressed: _logSet,
@@ -1056,7 +1074,7 @@ class _GuideSection extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: highlight
-                  ? lime.withValues(alpha: .35)
+                  ? NicoGymColors.lime.withValues(alpha: .35)
                   : Colors.white.withValues(alpha: .48),
               borderRadius: BorderRadius.circular(10),
             ),
