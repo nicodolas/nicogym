@@ -316,7 +316,7 @@ class _Header extends StatefulWidget {
 class _HeaderState extends State<_Header> {
   late final TokenStore _tokenStore;
   bool _authenticated = false;
-  int _authenticationReadGeneration = 0;
+  Future<bool>? _authenticationRead;
 
   @override
   void initState() {
@@ -326,16 +326,26 @@ class _HeaderState extends State<_Header> {
   }
 
   Future<bool> _refreshAuthentication() async {
-    final generation = ++_authenticationReadGeneration;
+    final pendingRead = _authenticationRead;
+    if (pendingRead != null) return pendingRead;
+
+    final read = _readAuthentication();
+    _authenticationRead = read;
+    try {
+      return await read;
+    } finally {
+      if (identical(_authenticationRead, read)) _authenticationRead = null;
+    }
+  }
+
+  Future<bool> _readAuthentication() async {
     var authenticated = false;
     try {
       authenticated = (await _tokenStore.read())?.isNotEmpty ?? false;
     } catch (_) {
       // Unavailable or damaged secure storage should degrade to signed out.
     }
-    if (mounted && generation == _authenticationReadGeneration) {
-      setState(() => _authenticated = authenticated);
-    }
+    if (mounted) setState(() => _authenticated = authenticated);
     return authenticated;
   }
 

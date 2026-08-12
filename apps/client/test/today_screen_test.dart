@@ -232,6 +232,7 @@ void main() {
     tokenStore.completeReads();
     await tester.pumpAndSettle();
 
+    expect(tokenStore.readCount, 1);
     expect(find.text('ĐÃ ĐĂNG NHẬP'), findsOneWidget);
     expect(find.text('ĐĂNG NHẬP'), findsNothing);
   });
@@ -305,6 +306,7 @@ class _DelayedTokenStore implements TokenStore {
 
   String? token;
   final List<Completer<String?>> _reads = [];
+  int get readCount => _reads.length;
 
   @override
   Future<void> clear() async => token = null;
