@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nicogym/auth/auth_api.dart';
+import 'package:nicogym/admin/catalog_api.dart';
 import 'package:nicogym/auth/auth_screen.dart';
 import 'package:nicogym/member/member_hub.dart';
 import 'package:nicogym/member/planner_api.dart';
+import 'package:nicogym/help/context_help.dart';
 import 'package:nicogym/workouts/exercise.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
@@ -377,12 +379,25 @@ class _Header extends StatelessWidget {
       ),
       cache: SecurePlannerCache(),
     );
+    final catalogApi = CatalogApi(
+      baseUrl: Uri.parse(apiBaseUrl),
+      tokenStore: authTokenStore,
+    );
     try {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (memberContext) => MemberHubScreen(
-            exerciseLoader: exerciseLoader,
+            exerciseLoader: () async {
+              try {
+                final remote = await catalogApi.loadExercises();
+                if (remote.isNotEmpty) return remote;
+              } catch (_) {
+                // The curated bundled catalog keeps the member experience usable offline.
+              }
+              return exerciseLoader();
+            },
             plannerRepository: plannerRepository,
+            catalogRepository: catalogApi,
             onOpenExercise: (exercise) => Navigator.of(memberContext).push(
               MaterialPageRoute<void>(
                 builder: (_) => WorkoutScreen(exercise: exercise),
@@ -394,6 +409,7 @@ class _Header extends StatelessWidget {
     } finally {
       await plannerRepository.whenIdle();
       plannerRepository.close();
+      catalogApi.close();
     }
   }
 
@@ -777,6 +793,13 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           widget.exercise.name.toUpperCase(),
           style: Theme.of(context).textTheme.titleLarge,
         ),
+        actions: const [
+          ContextHelpButton(
+            title: 'Hướng dẫn bài tập',
+            message:
+                'Xem phần chuẩn bị và cách thực hiện trước, dùng mức tạ nhẹ để học kỹ thuật rồi ghi từng hiệp. Dừng nếu có đau nhói hoặc mất kiểm soát.',
+          ),
+        ],
       ),
       body: SafeArea(
         child: Center(
@@ -814,6 +837,23 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     child: Image.asset(imageAsset, fit: BoxFit.cover),
                   ),
                 ],
+                if (widget.exercise.imageAsset == null)
+                  if (widget.exercise.imageUrl case final imageUrl?) ...[
+                    const SizedBox(height: 20),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Container(
+                          height: 220,
+                          color: _ink.withValues(alpha: .06),
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.image_not_supported_outlined),
+                        ),
+                      ),
+                    ),
+                  ],
                 if (_videoController case final controller?) ...[
                   const SizedBox(height: 20),
                   ClipRRect(
@@ -872,16 +912,18 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   spacing: 10,
                   runSpacing: 8,
                   children: [
-                    FilledButton.icon(
-                      onPressed: () => _openLink(widget.exercise.videoUrl),
-                      icon: const Icon(Icons.play_circle_outline_rounded),
-                      label: const Text('Xem video mẫu'),
-                    ),
-                    TextButton.icon(
-                      onPressed: () => _openLink(widget.exercise.sourceUrl),
-                      icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                      label: Text('Nguồn: ${widget.exercise.sourceLabel}'),
-                    ),
+                    if (widget.exercise.videoUrl.isNotEmpty)
+                      FilledButton.icon(
+                        onPressed: () => _openLink(widget.exercise.videoUrl),
+                        icon: const Icon(Icons.play_circle_outline_rounded),
+                        label: const Text('Xem video mẫu'),
+                      ),
+                    if (widget.exercise.sourceUrl.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: () => _openLink(widget.exercise.sourceUrl),
+                        icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                        label: Text('Nguồn: ${widget.exercise.sourceLabel}'),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 32),

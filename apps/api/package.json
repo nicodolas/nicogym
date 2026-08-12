@@ -7,7 +7,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "node scripts/require-direct-url.mjs && drizzle-kit migrate"
+    "db:migrate": "node scripts/require-direct-url.mjs && drizzle-kit migrate",
+    "admin:grant": "tsx scripts/grant-admin.ts",
+    "catalog:seed": "tsx scripts/seed-catalog.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.0",

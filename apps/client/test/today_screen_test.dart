@@ -63,10 +63,7 @@ void main() {
   testWidgets('shows only the compact base app version', (tester) async {
     useMobileViewport(tester);
     await tester.pumpWidget(
-      NicoGymApp(
-        exerciseLoader: loadTestExercises,
-        baseAppVersion: '1.1.1+5',
-      ),
+      NicoGymApp(exerciseLoader: loadTestExercises, baseAppVersion: '1.1.1+5'),
     );
 
     await tester.pump(const Duration(milliseconds: 100));

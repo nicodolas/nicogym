@@ -81,9 +81,13 @@ void main() {
 
     expect(find.text('Chân + Mông'), findsWidgets);
     expect(find.text('Đổi sang Ngực + Tay sau?'), findsOneWidget);
-    await tester.ensureVisible(find.text('Xác nhận đổi'));
+    expect(
+      find.textContaining('Chưa có lịch sử tập, tạm dùng mặc định'),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(find.text('Đổi sang Ngực + Tay sau'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Xác nhận đổi'));
+    await tester.tap(find.text('Đổi sang Ngực + Tay sau'));
     await tester.pump();
 
     final todayCard = find.byKey(const Key('today-workout-card'));
@@ -113,9 +117,9 @@ void main() {
       ),
     );
 
-    await tester.ensureVisible(find.text('Giữ lịch cũ'));
+    await tester.ensureVisible(find.text('Giữ lịch hôm nay'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Giữ lịch cũ'));
+    await tester.tap(find.text('Giữ lịch hôm nay'));
     await tester.pump();
 
     expect(find.text('Chân + Mông'), findsWidgets);
@@ -145,9 +149,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Xác nhận đổi'));
+    await tester.ensureVisible(find.text('Đổi sang Vai + Core'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Xác nhận đổi'));
+    await tester.tap(find.text('Đổi sang Vai + Core'));
     await tester.pumpAndSettle();
     expect(repository.saved?.todayWorkout, 'Vai + Core');
     expect(repository.saved?.recoveryHours, 72);

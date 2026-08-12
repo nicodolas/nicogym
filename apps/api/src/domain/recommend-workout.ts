@@ -15,13 +15,14 @@ interface RecommendationInput {
 }
 
 export type WorkoutRecommendation =
-  | { kind: "keep"; workoutId: string; reasons: string[] }
+  | { kind: "keep"; workoutId: string; reasons: string[]; usedRecoveryDefaults?: true }
   | {
       kind: "suggest";
       scheduledWorkoutId: string;
       suggestedWorkoutId: string;
       requiresConfirmation: true;
       reasons: string[];
+      usedRecoveryDefaults?: true;
     };
 
 function remainingRecoveryHours(
@@ -38,14 +39,28 @@ function remainingRecoveryHours(
 }
 
 export function recommendWorkout(input: RecommendationInput): WorkoutRecommendation {
+  if (Object.keys(input.recovery).length === 0) {
+    return {
+      kind: "keep",
+      workoutId: input.scheduled.id,
+      reasons: ["Chưa có lịch sử tập, tạm dùng mặc định"],
+      usedRecoveryDefaults: true,
+    };
+  }
   const scheduledRemaining = remainingRecoveryHours(input.scheduled, input.recovery);
   if (scheduledRemaining === 0) {
     return { kind: "keep", workoutId: input.scheduled.id, reasons: [] };
   }
 
-  const recoveredAlternative = input.alternatives.find(
-    (workout) => remainingRecoveryHours(workout, input.recovery) === 0,
-  );
+  const recoveredAlternative = input.alternatives
+    .filter((workout) => remainingRecoveryHours(workout, input.recovery) === 0)
+    .map((workout) => ({
+      workout,
+      restedHours: Math.min(
+        ...workout.muscleGroups.map((muscle) => input.recovery[muscle]?.hoursSinceTraining ?? 0),
+      ),
+    }))
+    .sort((left, right) => right.restedHours - left.restedHours || left.workout.id.localeCompare(right.workout.id))[0];
   if (!recoveredAlternative) {
     return { kind: "keep", workoutId: input.scheduled.id, reasons: [] };
   }
@@ -58,10 +73,12 @@ export function recommendWorkout(input: RecommendationInput): WorkoutRecommendat
   return {
     kind: "suggest",
     scheduledWorkoutId: input.scheduled.id,
-    suggestedWorkoutId: recoveredAlternative.id,
+    suggestedWorkoutId: recoveredAlternative.workout.id,
     requiresConfirmation: true,
-    reasons: blockedMuscle
-      ? [`${blockedMuscle} needs about ${scheduledRemaining} more hours of recovery`]
-      : [],
+    reasons: [
+      ...(blockedMuscle ? [`${blockedMuscle} còn khoảng ${scheduledRemaining} giờ phục hồi`] : []),
+      ...recoveredAlternative.workout.muscleGroups.map((muscle) =>
+        `${muscle} đã nghỉ ${input.recovery[muscle]?.hoursSinceTraining ?? 0} giờ`),
+    ],
   };
 }
