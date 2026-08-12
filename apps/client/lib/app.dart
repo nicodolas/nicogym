@@ -327,7 +327,12 @@ class _HeaderState extends State<_Header> {
 
   Future<void> _refreshAuthentication() async {
     final generation = ++_authenticationReadGeneration;
-    final authenticated = (await _tokenStore.read())?.isNotEmpty ?? false;
+    var authenticated = false;
+    try {
+      authenticated = (await _tokenStore.read())?.isNotEmpty ?? false;
+    } catch (_) {
+      // Unavailable or damaged secure storage should degrade to signed out.
+    }
     if (mounted && generation == _authenticationReadGeneration) {
       setState(() => _authenticated = authenticated);
     }
@@ -428,6 +433,7 @@ class _HeaderState extends State<_Header> {
       await plannerRepository.whenIdle();
       plannerRepository.close();
       catalogApi.close();
+      await _refreshAuthentication();
     }
   }
 

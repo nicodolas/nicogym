@@ -236,6 +236,19 @@ void main() {
     expect(find.text('ĐĂNG NHẬP'), findsNothing);
   });
 
+  testWidgets('secure storage read failures degrade to signed out', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    await tester.pumpWidget(
+      NicoGymApp(memberTokenStore: _ThrowingTokenStore()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byTooltip('Tài khoản'), findsOneWidget);
+  });
+
   testWidgets('opens the full member library for a signed-in user', (
     tester,
   ) async {
@@ -295,4 +308,15 @@ class _DelayedTokenStore implements TokenStore {
 
   @override
   Future<void> write(String value) async => token = value;
+}
+
+class _ThrowingTokenStore implements TokenStore {
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<String?> read() => Future<String?>.error(StateError('unavailable'));
+
+  @override
+  Future<void> write(String value) async {}
 }
