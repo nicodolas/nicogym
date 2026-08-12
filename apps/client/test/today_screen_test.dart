@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nicogym/app.dart';
@@ -181,7 +183,9 @@ void main() {
     tester,
   ) async {
     useMobileViewport(tester);
-    await tester.pumpWidget(const NicoGymApp());
+    await tester.pumpWidget(
+      NicoGymApp(memberTokenStore: _TestTokenStore(null)),
+    );
     await tester.tap(find.byTooltip('Tài khoản'));
     await tester.pumpAndSettle();
 
@@ -190,6 +194,76 @@ void main() {
     await tester.pump();
 
     expect(find.text('TẠO TÀI KHOẢN'), findsOneWidget);
+  });
+
+  testWidgets('shows account status instead of login when signed in', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    final tokenStore = _TestTokenStore('signed-session-token');
+    await tester.pumpWidget(NicoGymApp(memberTokenStore: tokenStore));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Đã đăng nhập'), findsOneWidget);
+    await tester.tap(find.byTooltip('Đã đăng nhập'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ĐÃ ĐĂNG NHẬP'), findsOneWidget);
+    expect(find.text('Đăng nhập lại'), findsNothing);
+
+    await tester.tap(find.text('Đăng xuất'));
+    await tester.pumpAndSettle();
+
+    expect(tokenStore.token, isNull);
+    expect(find.byTooltip('Tài khoản'), findsOneWidget);
+  });
+
+  testWidgets('waits for a delayed persisted session before account routing', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    final tokenStore = _DelayedTokenStore('persisted-session-token');
+    await tester.pumpWidget(NicoGymApp(memberTokenStore: tokenStore));
+
+    await tester.tap(find.byTooltip('Tài khoản'));
+    await tester.pump();
+    expect(find.text('ĐĂNG NHẬP'), findsNothing);
+
+    tokenStore.completeReads();
+    await tester.pumpAndSettle();
+
+    expect(tokenStore.readCount, 1);
+    expect(find.text('ĐÃ ĐĂNG NHẬP'), findsOneWidget);
+    expect(find.text('ĐĂNG NHẬP'), findsNothing);
+  });
+
+  testWidgets('secure storage read failures degrade to signed out', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    await tester.pumpWidget(
+      NicoGymApp(memberTokenStore: _ThrowingTokenStore()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byTooltip('Tài khoản'), findsOneWidget);
+  });
+
+  testWidgets('member navigation handles secure storage read failures', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    await tester.pumpWidget(
+      NicoGymApp(memberTokenStore: _ThrowingTokenStore()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Thư viện và lịch tập'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('ĐĂNG NHẬP'), findsOneWidget);
   });
 
   testWidgets('opens the full member library for a signed-in user', (
@@ -225,4 +299,42 @@ class _TestTokenStore implements TokenStore {
 
   @override
   Future<void> write(String value) async => token = value;
+}
+
+class _DelayedTokenStore implements TokenStore {
+  _DelayedTokenStore(this.token);
+
+  String? token;
+  final List<Completer<String?>> _reads = [];
+  int get readCount => _reads.length;
+
+  @override
+  Future<void> clear() async => token = null;
+
+  @override
+  Future<String?> read() {
+    final completer = Completer<String?>();
+    _reads.add(completer);
+    return completer.future;
+  }
+
+  void completeReads() {
+    for (final read in _reads) {
+      if (!read.isCompleted) read.complete(token);
+    }
+  }
+
+  @override
+  Future<void> write(String value) async => token = value;
+}
+
+class _ThrowingTokenStore implements TokenStore {
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<String?> read() => Future<String?>.error(StateError('unavailable'));
+
+  @override
+  Future<void> write(String value) async {}
 }
