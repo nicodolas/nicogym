@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+env:
+  API_BASE_URL: https://nicogym-api-huit.vercel.app
+  BASE_APP_VERSION: 1.1.1+5
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -20,6 +24,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: node scripts/validate-release-config.mjs
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run api:test
       - run: npm run api:typecheck
@@ -37,6 +42,10 @@ jobs:
       - working-directory: apps/client
         run: >-
           flutter build web --release
+          --no-web-resources-cdn
+          --pwa-strategy=none
+          --dart-define=API_BASE_URL=${{ env.API_BASE_URL }}
+          --dart-define=BASE_APP_VERSION=${{ env.BASE_APP_VERSION }}
           --dart-define=APK_DOWNLOAD_URL=https://github.com/${{ github.repository }}/releases/latest/download/nicogym-android.apk
 
   release-apk:
@@ -70,6 +79,7 @@ jobs:
             "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" "../upload-keystore.jks" > key.properties
       - working-directory: apps/client
         run: flutter pub get
+      - run: node scripts/validate-release-config.mjs
       - working-directory: apps/client
         env:
           SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
@@ -77,6 +87,9 @@ jobs:
           shorebird release android
           --artifact apk
           --flutter-version 3.44.9
+          --
+          --dart-define=API_BASE_URL=${{ env.API_BASE_URL }}
+          --dart-define=BASE_APP_VERSION=${{ env.BASE_APP_VERSION }}
       - name: Prepare release asset
         run: |
           cp apps/client/build/app/outputs/flutter-apk/app-release.apk nicogym-android.apk
