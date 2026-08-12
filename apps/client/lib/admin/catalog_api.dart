@@ -37,13 +37,14 @@ class CatalogApi implements CatalogRepository {
     required this.baseUrl,
     required this.tokenStore,
     http.Client? client,
+    this.requestTimeout = const Duration(seconds: 15),
   }) : _client = client ?? http.Client();
 
   final Uri baseUrl;
   final TokenStore tokenStore;
+  final Duration requestTimeout;
   final http.Client _client;
   final Set<Future<void>> _pendingRequests = {};
-  static const _timeout = Duration(seconds: 15);
 
   @override
   Future<MemberIdentity> me() async {
@@ -93,11 +94,12 @@ class CatalogApi implements CatalogRepository {
   Future<Map<String, dynamic>> _get(String path) => _track(_requestGet(path));
 
   Future<Map<String, dynamic>> _requestGet(String path) async {
-    final response = await _client
-        .get(baseUrl.resolve(path), headers: await _headers())
-        .timeout(_timeout);
+    final response = await _sendGet(path).timeout(requestTimeout);
     return _decode(response);
   }
+
+  Future<http.Response> _sendGet(String path) async =>
+      _client.get(baseUrl.resolve(path), headers: await _headers());
 
   Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) =>
       _track(_requestPost(path, body));
@@ -106,15 +108,18 @@ class CatalogApi implements CatalogRepository {
     String path,
     Map<String, dynamic> body,
   ) async {
-    final response = await _client
-        .post(
-          baseUrl.resolve(path),
-          headers: await _headers(json: true),
-          body: jsonEncode(body),
-        )
-        .timeout(_timeout);
+    final response = await _sendPost(path, body).timeout(requestTimeout);
     return _decode(response);
   }
+
+  Future<http.Response> _sendPost(
+    String path,
+    Map<String, dynamic> body,
+  ) async => _client.post(
+    baseUrl.resolve(path),
+    headers: await _headers(json: true),
+    body: jsonEncode(body),
+  );
 
   Future<Map<String, String>> _headers({bool json = false}) async {
     final token = await tokenStore.read();

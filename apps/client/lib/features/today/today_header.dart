@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:nicogym/admin/catalog_api.dart';
 import 'package:nicogym/auth/auth_api.dart';
@@ -169,12 +171,21 @@ class _TodayHeaderState extends State<TodayHeader> {
         ),
       );
     } finally {
-      await plannerRepository.whenIdle();
-      await catalogApi.whenIdle();
-      plannerRepository.close();
-      catalogApi.close();
-      await _refreshAuthentication();
+      unawaited(_closeMemberResources(plannerRepository, catalogApi));
+      unawaited(_refreshAuthentication());
     }
+  }
+
+  Future<void> _closeMemberResources(
+    CachedPlannerRepository plannerRepository,
+    CatalogApi catalogApi,
+  ) async {
+    await Future.wait([
+      plannerRepository.whenIdle(),
+      catalogApi.whenIdle(),
+    ]).timeout(const Duration(seconds: 16), onTimeout: () => const []);
+    plannerRepository.close();
+    catalogApi.close();
   }
 
   Future<void> _openAccount(BuildContext context) async {

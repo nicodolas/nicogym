@@ -31,6 +31,19 @@ void main() {
     expect(idle, isTrue);
     expect(client.closed, isTrue);
   });
+
+  test('times out when token storage never responds', () async {
+    final api = CatalogApi(
+      baseUrl: Uri.parse('https://example.com'),
+      tokenStore: _HangingTokenStore(),
+      client: _DelayedClient(),
+      requestTimeout: const Duration(milliseconds: 10),
+    );
+
+    await expectLater(api.loadExercises(), throwsA(isA<TimeoutException>()));
+    await api.whenIdle();
+    api.close();
+  });
 }
 
 class _DelayedClient extends http.BaseClient {
@@ -64,6 +77,17 @@ class _TokenStore implements TokenStore {
 
   @override
   Future<String?> read() async => 'token';
+
+  @override
+  Future<void> write(String value) async {}
+}
+
+class _HangingTokenStore implements TokenStore {
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<String?> read() => Completer<String?>().future;
 
   @override
   Future<void> write(String value) async {}
