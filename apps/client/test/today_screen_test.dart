@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nicogym/app.dart';
@@ -181,7 +183,9 @@ void main() {
     tester,
   ) async {
     useMobileViewport(tester);
-    await tester.pumpWidget(const NicoGymApp());
+    await tester.pumpWidget(
+      NicoGymApp(memberTokenStore: _TestTokenStore(null)),
+    );
     await tester.tap(find.byTooltip('Tài khoản'));
     await tester.pumpAndSettle();
 
@@ -214,6 +218,24 @@ void main() {
     expect(find.byTooltip('Tài khoản'), findsOneWidget);
   });
 
+  testWidgets('waits for a delayed persisted session before account routing', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    final tokenStore = _DelayedTokenStore('persisted-session-token');
+    await tester.pumpWidget(NicoGymApp(memberTokenStore: tokenStore));
+
+    await tester.tap(find.byTooltip('Tài khoản'));
+    await tester.pump();
+    expect(find.text('ĐĂNG NHẬP'), findsNothing);
+
+    tokenStore.completeReads();
+    await tester.pumpAndSettle();
+
+    expect(find.text('ĐÃ ĐĂNG NHẬP'), findsOneWidget);
+    expect(find.text('ĐĂNG NHẬP'), findsNothing);
+  });
+
   testWidgets('opens the full member library for a signed-in user', (
     tester,
   ) async {
@@ -244,6 +266,32 @@ class _TestTokenStore implements TokenStore {
 
   @override
   Future<String?> read() async => token;
+
+  @override
+  Future<void> write(String value) async => token = value;
+}
+
+class _DelayedTokenStore implements TokenStore {
+  _DelayedTokenStore(this.token);
+
+  String? token;
+  final List<Completer<String?>> _reads = [];
+
+  @override
+  Future<void> clear() async => token = null;
+
+  @override
+  Future<String?> read() {
+    final completer = Completer<String?>();
+    _reads.add(completer);
+    return completer.future;
+  }
+
+  void completeReads() {
+    for (final read in _reads) {
+      if (!read.isCompleted) read.complete(token);
+    }
+  }
 
   @override
   Future<void> write(String value) async => token = value;

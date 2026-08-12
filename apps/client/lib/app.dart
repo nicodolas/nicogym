@@ -316,6 +316,7 @@ class _Header extends StatefulWidget {
 class _HeaderState extends State<_Header> {
   late final TokenStore _tokenStore;
   bool _authenticated = false;
+  int _authenticationReadGeneration = 0;
 
   @override
   void initState() {
@@ -325,8 +326,11 @@ class _HeaderState extends State<_Header> {
   }
 
   Future<void> _refreshAuthentication() async {
+    final generation = ++_authenticationReadGeneration;
     final authenticated = (await _tokenStore.read())?.isNotEmpty ?? false;
-    if (mounted) setState(() => _authenticated = authenticated);
+    if (mounted && generation == _authenticationReadGeneration) {
+      setState(() => _authenticated = authenticated);
+    }
   }
 
   @override
@@ -428,6 +432,8 @@ class _HeaderState extends State<_Header> {
   }
 
   Future<void> _openAccount(BuildContext context) async {
+    await _refreshAuthentication();
+    if (!context.mounted) return;
     if (!_authenticated) {
       await Navigator.of(context).push<bool>(
         MaterialPageRoute<bool>(
