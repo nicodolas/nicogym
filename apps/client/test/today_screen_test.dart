@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nicogym/app.dart';
+import 'package:nicogym/features/workout/workout_screen.dart';
 import 'package:nicogym/workouts/exercise.dart';
 import 'package:nicogym/workouts/workout_api.dart';
 
@@ -150,6 +151,39 @@ void main() {
       find.text('Mạng đang gián đoạn, hiệp vẫn được giữ.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('rest timer expires accurately while the app is paused', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    var now = DateTime(2026, 8, 13, 20);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WorkoutScreen(
+          exercise: testExercises.first,
+          now: () => now,
+          workoutRepository: _MemoryWorkoutRepository(),
+        ),
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.text('Ghi hiệp'),
+      400,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Ghi hiệp'));
+    await tester.pump();
+    expect(find.byKey(const Key('rest-timer')), findsOneWidget);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    now = now.add(const Duration(seconds: 91));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
+    expect(find.byKey(const Key('rest-timer')), findsNothing);
   });
 
   testWidgets('retries pending sets after synchronization recovers', (

@@ -14,16 +14,21 @@ class WorkoutScreen extends StatefulWidget {
     super.key,
     required this.exercise,
     required this.workoutRepository,
+    this.restDuration = const Duration(seconds: 90),
+    this.now = DateTime.now,
   });
 
   final Exercise exercise;
   final WorkoutRepository workoutRepository;
+  final Duration restDuration;
+  final DateTime Function() now;
 
   @override
   State<WorkoutScreen> createState() => _WorkoutScreenState();
 }
 
-class _WorkoutScreenState extends State<WorkoutScreen> {
+class _WorkoutScreenState extends State<WorkoutScreen>
+    with WidgetsBindingObserver {
   final _loadController = TextEditingController(text: '40');
   final _repsController = TextEditingController(text: '10');
   final List<String> _sets = [];
@@ -33,14 +38,15 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   String? _syncMessage;
   bool _logging = false;
   Timer? _restTimer;
+  DateTime? _restEndsAt;
   int _restSeconds = 0;
-  static const _defaultRestSeconds = 90;
   late final String _sessionOperationId = _newOperationId('session', 0);
   var _operationSequence = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final videoId = widget.exercise.videoId;
     if (videoId != null && videoId.isNotEmpty) {
       _videoController = YoutubePlayerController.fromVideoId(
@@ -58,6 +64,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _restTimer?.cancel();
     _loadController.dispose();
     _repsController.dispose();
@@ -152,24 +159,57 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   void _startRestTimer() {
     _restTimer?.cancel();
-    setState(() => _restSeconds = _defaultRestSeconds);
+    _restEndsAt = widget.now().add(widget.restDuration);
+    setState(() => _restSeconds = widget.restDuration.inSeconds);
+    _scheduleRestTicks();
+  }
+
+  void _scheduleRestTicks() {
+    _restTimer?.cancel();
     _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return timer.cancel();
-      if (_restSeconds <= 1) {
-        timer.cancel();
-        setState(() => _restSeconds = 0);
-        HapticFeedback.mediumImpact();
-      } else {
-        setState(() => _restSeconds -= 1);
-      }
+      _refreshRestTime(notifyWhenFinished: true);
     });
   }
 
-  void _addRestTime() => setState(() => _restSeconds += 30);
+  void _refreshRestTime({required bool notifyWhenFinished}) {
+    final deadline = _restEndsAt;
+    if (deadline == null) return;
+    final milliseconds = deadline.difference(widget.now()).inMilliseconds;
+    if (milliseconds <= 0) {
+      _restTimer?.cancel();
+      _restEndsAt = null;
+      setState(() => _restSeconds = 0);
+      if (notifyWhenFinished) HapticFeedback.mediumImpact();
+      return;
+    }
+    final remaining = (milliseconds + 999) ~/ 1000;
+    if (remaining != _restSeconds) setState(() => _restSeconds = remaining);
+  }
+
+  void _addRestTime() {
+    final deadline = _restEndsAt;
+    if (deadline == null) return;
+    _restEndsAt = deadline.add(const Duration(seconds: 30));
+    _refreshRestTime(notifyWhenFinished: false);
+  }
 
   void _skipRest() {
     _restTimer?.cancel();
+    _restEndsAt = null;
     setState(() => _restSeconds = 0);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshRestTime(notifyWhenFinished: true);
+      if (_restEndsAt != null) _scheduleRestTicks();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _restTimer?.cancel();
+    }
   }
 
   String get _restLabel {
