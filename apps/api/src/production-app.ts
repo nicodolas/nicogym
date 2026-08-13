@@ -212,6 +212,35 @@ export function createProductionApp() {
         return saved;
       },
     },
+    workoutSessions: {
+      start: async ({ userId, exerciseSlug }) => {
+        await database.execute(sql`
+          insert into profiles (auth_user_id)
+          values (${userId})
+          on conflict (auth_user_id) do nothing
+        `);
+        const result = await database.execute(sql`
+          with created_session as (
+            insert into workout_sessions (profile_id)
+            select profiles.id
+            from profiles
+            where profiles.auth_user_id = ${userId}
+              and exists (
+                select 1 from exercises
+                where exercises.slug = ${exerciseSlug} and exercises.archived = false
+              )
+            returning id
+          )
+          insert into workout_exercises (workout_session_id, exercise_id, position)
+          select created_session.id, exercises.id, 0
+          from created_session
+          inner join exercises
+            on exercises.slug = ${exerciseSlug} and exercises.archived = false
+          returning workout_exercises.id
+        `);
+        return result.rows[0]?.id ? String(result.rows[0].id) : null;
+      },
+    },
     workoutSets: {
       insert: async ({ userId, workoutExerciseId, loadKg, repetitions }) => {
         await database.execute(sql`

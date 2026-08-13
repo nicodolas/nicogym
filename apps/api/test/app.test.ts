@@ -73,6 +73,38 @@ describe("API", () => {
     expect(response.status).toBe(401);
   });
 
+  it("starts an owned workout exercise from a catalog slug", async () => {
+    const started: unknown[] = [];
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      workoutSessions: {
+        start: async (value) => (started.push(value), workoutExerciseId),
+      },
+    }).request("/api/workout-sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ exerciseSlug: "leg-press" }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(started).toEqual([{ userId: "user-1", exerciseSlug: "leg-press" }]);
+    expect(await response.json()).toEqual({ data: { workoutExerciseId } });
+  });
+
+  it("does not start a workout for an unknown exercise", async () => {
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      workoutSessions: { start: async () => null },
+    }).request("/api/workout-sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ exerciseSlug: "missing-exercise" }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "exercise_not_found" });
+  });
+
   it("requires authentication to read the planner", async () => {
     const response = await createApp().request("/api/planner");
     expect(response.status).toBe(401);

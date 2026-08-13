@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nicogym/app.dart';
 import 'package:nicogym/workouts/exercise.dart';
+import 'package:nicogym/workouts/workout_api.dart';
 
 void main() {
   const testExercises = [
@@ -77,7 +78,13 @@ void main() {
 
   testWidgets('opens workout mode and logs a set quickly', (tester) async {
     useMobileViewport(tester);
-    await tester.pumpWidget(NicoGymApp(exerciseLoader: loadTestExercises));
+    final workoutRepository = _MemoryWorkoutRepository();
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        workoutRepository: workoutRepository,
+      ),
+    );
     await tester.tap(find.text('Bắt đầu buổi tập'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
@@ -93,10 +100,12 @@ void main() {
     await tester.enterText(find.byKey(const Key('load-input')), '40');
     await tester.enterText(find.byKey(const Key('reps-input')), '10');
     await tester.tap(find.text('Ghi hiệp'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('40 kg × 10'), findsOneWidget);
     expect(find.text('HIỆP 2'), findsOneWidget);
+    expect(find.text('Đã đồng bộ hiệp 1'), findsOneWidget);
+    expect(workoutRepository.logged, [(40.0, 10)]);
   });
 
   testWidgets('opens the Romanian deadlift guide from the workout list', (
@@ -165,4 +174,19 @@ void main() {
     expect(find.text('Giữ lịch chân'), findsOneWidget);
     expect(find.text('Xác nhận đổi'), findsOneWidget);
   });
+}
+
+class _MemoryWorkoutRepository implements WorkoutRepository {
+  final List<(double, int)> logged = [];
+
+  @override
+  Future<String> startExercise(String exerciseSlug) async =>
+      'workout-exercise-1';
+
+  @override
+  Future<void> logSet({
+    required String workoutExerciseId,
+    required double loadKg,
+    required int repetitions,
+  }) async => logged.add((loadKg, repetitions));
 }

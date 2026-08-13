@@ -12,6 +12,10 @@ const workoutSetSchema = z.object({
   repetitions: z.number().int().min(1).max(1000),
 });
 
+const workoutSessionSchema = z.object({
+  exerciseSlug: z.string().trim().min(1).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+});
+
 const plannerStateSchema = z.object({
   weeklySchedule: z
     .array(z.object({ day: z.number().int().min(1).max(7), title: z.string().trim().min(1).max(80) }))
@@ -39,9 +43,15 @@ interface WorkoutSetInsert {
   repetitions: number;
 }
 
+interface WorkoutSessionStart {
+  userId: string;
+  exerciseSlug: string;
+}
+
 export interface AppDependencies {
   currentUser?: (headers: Headers) => Promise<CurrentUser | null>;
   workoutSets?: { insert: (value: WorkoutSetInsert) => Promise<boolean> };
+  workoutSessions?: { start: (value: WorkoutSessionStart) => Promise<string | null> };
   allowedOrigins?: string[];
   authHandler?: (request: Request) => Promise<Response>;
   workoutWriteAllowed?: (userId: string) => boolean | Promise<boolean>;
@@ -89,7 +99,7 @@ export function createApp(dependencies: AppDependencies = {}) {
     }),
   );
 
-  for (const path of ["/api/planner", "/api/workout-sets"]) {
+  for (const path of ["/api/planner", "/api/workout-sessions", "/api/workout-sets"]) {
     app.use(
       path,
       bodyLimit({
@@ -220,6 +230,28 @@ export function createApp(dependencies: AppDependencies = {}) {
 
     const state = await dependencies.plannerStates.upsert(user.id, parsed.data);
     return context.json({ data: state });
+  });
+
+  app.post("/api/workout-sessions", async (context) => {
+    if (!context.req.header("content-type")?.toLowerCase().startsWith("application/json")) {
+      return context.json({ error: "unsupported_media_type" }, 415);
+    }
+    const user = await (dependencies.currentUser?.(context.req.raw.headers) ?? Promise.resolve(null));
+    if (!user) return context.json({ error: "unauthorized" }, 401);
+    if (dependencies.workoutWriteAllowed && !(await dependencies.workoutWriteAllowed(user.id))) {
+      context.header("Retry-After", "60");
+      return context.json({ error: "rate_limit_exceeded" }, 429);
+    }
+    const parsed = workoutSessionSchema.safeParse(await readJson(context.req.raw));
+    if (!parsed.success) return context.json({ error: "invalid_workout_session" }, 400);
+    if (!dependencies.workoutSessions) return context.json({ error: "service_unavailable" }, 503);
+
+    const workoutExerciseId = await dependencies.workoutSessions.start({
+      userId: user.id,
+      exerciseSlug: parsed.data.exerciseSlug,
+    });
+    if (!workoutExerciseId) return context.json({ error: "exercise_not_found" }, 404);
+    return context.json({ data: { workoutExerciseId } }, 201);
   });
 
   app.post("/api/workout-sets", async (context) => {

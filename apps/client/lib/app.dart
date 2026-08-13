@@ -4,6 +4,7 @@ import 'package:nicogym/auth/auth_api.dart';
 import 'package:nicogym/features/today/today_header.dart';
 import 'package:nicogym/features/workout/workout_screen.dart';
 import 'package:nicogym/workouts/exercise.dart';
+import 'package:nicogym/workouts/workout_api.dart';
 
 class NicoGymApp extends StatelessWidget {
   const NicoGymApp({
@@ -20,6 +21,7 @@ class NicoGymApp extends StatelessWidget {
     ),
     this.exerciseLoader = ExerciseLibrary.load,
     this.memberTokenStore,
+    this.workoutRepository,
   });
 
   final bool showRecoverySuggestion;
@@ -28,9 +30,14 @@ class NicoGymApp extends StatelessWidget {
   final String baseAppVersion;
   final Future<List<Exercise>> Function() exerciseLoader;
   final TokenStore? memberTokenStore;
+  final WorkoutRepository? workoutRepository;
 
   @override
   Widget build(BuildContext context) {
+    final tokenStore = memberTokenStore ?? SecureTokenStore();
+    final workoutSync =
+        workoutRepository ??
+        WorkoutApi(baseUrl: Uri.parse(apiBaseUrl), tokenStore: tokenStore);
     return MaterialApp(
       title: 'NicoGym',
       debugShowCheckedModeBanner: false,
@@ -41,7 +48,8 @@ class NicoGymApp extends StatelessWidget {
         apiBaseUrl: apiBaseUrl,
         baseAppVersion: baseAppVersion,
         exerciseLoader: exerciseLoader,
-        memberTokenStore: memberTokenStore,
+        memberTokenStore: tokenStore,
+        workoutRepository: workoutSync,
       ),
     );
   }
@@ -56,6 +64,7 @@ class TodayScreen extends StatelessWidget {
     required this.baseAppVersion,
     required this.exerciseLoader,
     required this.memberTokenStore,
+    required this.workoutRepository,
   });
 
   final bool showRecoverySuggestion;
@@ -64,6 +73,7 @@ class TodayScreen extends StatelessWidget {
   final String baseAppVersion;
   final Future<List<Exercise>> Function() exerciseLoader;
   final TokenStore? memberTokenStore;
+  final WorkoutRepository workoutRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +99,7 @@ class TodayScreen extends StatelessWidget {
                             apiBaseUrl: apiBaseUrl,
                             exerciseLoader: exerciseLoader,
                             tokenStore: memberTokenStore,
+                            workoutRepository: workoutRepository,
                           ),
                           const SizedBox(height: 28),
                           _TodayHero(compact: constraints.maxWidth < 760),
@@ -137,7 +148,10 @@ class TodayScreen extends StatelessWidget {
               ),
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => _WorkoutLoaderScreen(loader: exerciseLoader),
+                  builder: (_) => _WorkoutLoaderScreen(
+                    loader: exerciseLoader,
+                    workoutRepository: workoutRepository,
+                  ),
                 ),
               ),
               icon: const Icon(Icons.play_arrow_rounded),
@@ -188,9 +202,13 @@ class TodayScreen extends StatelessWidget {
 }
 
 class _WorkoutLoaderScreen extends StatefulWidget {
-  const _WorkoutLoaderScreen({required this.loader});
+  const _WorkoutLoaderScreen({
+    required this.loader,
+    required this.workoutRepository,
+  });
 
   final Future<List<Exercise>> Function() loader;
+  final WorkoutRepository workoutRepository;
 
   @override
   State<_WorkoutLoaderScreen> createState() => _WorkoutLoaderScreenState();
@@ -235,7 +253,10 @@ class _WorkoutLoaderScreenState extends State<_WorkoutLoaderScreen> {
           body: const Center(child: CircularProgressIndicator()),
         );
       }
-      return WorkoutScreen(exercise: snapshot.data!.first);
+      return WorkoutScreen(
+        exercise: snapshot.data!.first,
+        workoutRepository: widget.workoutRepository,
+      );
     },
   );
 }

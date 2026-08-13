@@ -3,13 +3,19 @@ import 'package:flutter/services.dart';
 import 'package:nicogym/app/app_theme.dart';
 import 'package:nicogym/help/context_help.dart';
 import 'package:nicogym/workouts/exercise.dart';
+import 'package:nicogym/workouts/workout_api.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 class WorkoutScreen extends StatefulWidget {
-  const WorkoutScreen({super.key, required this.exercise});
+  const WorkoutScreen({
+    super.key,
+    required this.exercise,
+    this.workoutRepository,
+  });
 
   final Exercise exercise;
+  final WorkoutRepository? workoutRepository;
 
   @override
   State<WorkoutScreen> createState() => _WorkoutScreenState();
@@ -20,10 +26,16 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   final _repsController = TextEditingController(text: '10');
   final List<String> _sets = [];
   YoutubePlayerController? _videoController;
+  Future<String?>? _workoutExercise;
+  String? _syncMessage;
+  bool _logging = false;
 
   @override
   void initState() {
     super.initState();
+    if (widget.workoutRepository != null) {
+      _workoutExercise = _startExercise();
+    }
     final videoId = widget.exercise.videoId;
     if (videoId != null && videoId.isNotEmpty) {
       _videoController = YoutubePlayerController.fromVideoId(
@@ -47,7 +59,20 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     super.dispose();
   }
 
-  void _logSet() {
+  Future<String?> _startExercise() async {
+    try {
+      final id = await widget.workoutRepository!.startExercise(
+        widget.exercise.id,
+      );
+      if (mounted) setState(() => _syncMessage = 'Buổi tập đã sẵn sàng');
+      return id;
+    } on WorkoutSyncException catch (error) {
+      if (mounted) setState(() => _syncMessage = error.message);
+      return null;
+    }
+  }
+
+  Future<void> _logSet() async {
     final load = double.tryParse(_loadController.text.replaceAll(',', '.'));
     final reps = int.tryParse(_repsController.text);
     if (load == null || !load.isFinite || load < 0) {
@@ -62,11 +87,28 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       );
       return;
     }
-    setState(
-      () => _sets.add(
-        '${load.toStringAsFixed(load % 1 == 0 ? 0 : 1)} kg × $reps',
-      ),
-    );
+    if (_logging) return;
+    setState(() => _logging = true);
+    var synced = false;
+    final workoutExerciseId = await _workoutExercise;
+    if (workoutExerciseId != null) {
+      try {
+        await widget.workoutRepository!.logSet(
+          workoutExerciseId: workoutExerciseId,
+          loadKg: load,
+          repetitions: reps,
+        );
+        synced = true;
+      } on WorkoutSyncException catch (error) {
+        if (mounted) setState(() => _syncMessage = error.message);
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _sets.add('${load.toStringAsFixed(load % 1 == 0 ? 0 : 1)} kg × $reps');
+      _logging = false;
+      _syncMessage = synced ? 'Đã đồng bộ hiệp ${_sets.length}' : _syncMessage;
+    });
   }
 
   @override
@@ -214,6 +256,17 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   'GHI NHẬN HIỆP',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
+                if (_syncMessage case final message?) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    message,
+                    key: const Key('workout-sync-status'),
+                    style: const TextStyle(
+                      color: NicoGymColors.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Text(
                   'HIỆP ${_sets.length + 1}',
@@ -248,8 +301,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     foregroundColor: NicoGymColors.ink,
                     shape: const RoundedRectangleBorder(),
                   ),
-                  onPressed: _logSet,
-                  child: const Text('Ghi hiệp'),
+                  onPressed: _logging ? null : _logSet,
+                  child: Text(_logging ? 'Đang lưu…' : 'Ghi hiệp'),
                 ),
                 const SizedBox(height: 24),
                 for (final entry in _sets.indexed)

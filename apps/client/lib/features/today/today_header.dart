@@ -9,6 +9,7 @@ import 'package:nicogym/features/workout/workout_screen.dart';
 import 'package:nicogym/member/member_hub.dart';
 import 'package:nicogym/member/planner_api.dart';
 import 'package:nicogym/workouts/exercise.dart';
+import 'package:nicogym/workouts/workout_api.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class TodayHeader extends StatefulWidget {
@@ -18,12 +19,14 @@ class TodayHeader extends StatefulWidget {
     required this.apiBaseUrl,
     required this.exerciseLoader,
     required this.tokenStore,
+    required this.workoutRepository,
   });
 
   final String apkDownloadUrl;
   final String apiBaseUrl;
   final Future<List<Exercise>> Function() exerciseLoader;
   final TokenStore? tokenStore;
+  final WorkoutRepository workoutRepository;
 
   @override
   State<TodayHeader> createState() => _TodayHeaderState();
@@ -166,7 +169,10 @@ class _TodayHeaderState extends State<TodayHeader> {
             catalogRepository: catalogApi,
             onOpenExercise: (exercise) => Navigator.of(memberContext).push(
               MaterialPageRoute<void>(
-                builder: (_) => WorkoutScreen(exercise: exercise),
+                builder: (_) => WorkoutScreen(
+                  exercise: exercise,
+                  workoutRepository: widget.workoutRepository,
+                ),
               ),
             ),
           ),
