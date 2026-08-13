@@ -157,6 +157,7 @@ class CachedPlannerRepository implements PlannerRepository {
   final PlannerCache cache;
   int _activeOperations = 0;
   Completer<void>? _idleCompleter;
+  Future<void> _saveTail = Future<void>.value();
 
   @override
   Future<PlannerLoadResult> load() async {
@@ -194,7 +195,13 @@ class CachedPlannerRepository implements PlannerRepository {
   }
 
   @override
-  Future<PlannerState> save(PlannerState state) async {
+  Future<PlannerState> save(PlannerState state) {
+    final operation = _saveTail.then((_) => _persistSave(state));
+    _saveTail = operation.then<void>((_) {}, onError: (_, _) {});
+    return operation;
+  }
+
+  Future<PlannerState> _persistSave(PlannerState state) async {
     _beginOperation();
     try {
       await cache.write(state, dirty: true);
@@ -207,7 +214,12 @@ class CachedPlannerRepository implements PlannerRepository {
   }
 
   Future<void> whenIdle() async {
-    if (_activeOperations > 0) await _idleCompleter!.future;
+    while (true) {
+      final saveTail = _saveTail;
+      if (_activeOperations > 0) await _idleCompleter!.future;
+      await saveTail;
+      if (identical(saveTail, _saveTail) && _activeOperations == 0) return;
+    }
   }
 
   void _beginOperation() {
