@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nicogym/app/app_theme.dart';
@@ -12,16 +14,21 @@ class WorkoutScreen extends StatefulWidget {
     super.key,
     required this.exercise,
     required this.workoutRepository,
+    this.restDuration = const Duration(seconds: 90),
+    this.now = DateTime.now,
   });
 
   final Exercise exercise;
   final WorkoutRepository workoutRepository;
+  final Duration restDuration;
+  final DateTime Function() now;
 
   @override
   State<WorkoutScreen> createState() => _WorkoutScreenState();
 }
 
-class _WorkoutScreenState extends State<WorkoutScreen> {
+class _WorkoutScreenState extends State<WorkoutScreen>
+    with WidgetsBindingObserver {
   final _loadController = TextEditingController(text: '40');
   final _repsController = TextEditingController(text: '10');
   final List<String> _sets = [];
@@ -30,12 +37,16 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   Future<String?>? _workoutExercise;
   String? _syncMessage;
   bool _logging = false;
+  Timer? _restTimer;
+  DateTime? _restEndsAt;
+  int _restSeconds = 0;
   late final String _sessionOperationId = _newOperationId('session', 0);
   var _operationSequence = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final videoId = widget.exercise.videoId;
     if (videoId != null && videoId.isNotEmpty) {
       _videoController = YoutubePlayerController.fromVideoId(
@@ -53,6 +64,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _restTimer?.cancel();
     _loadController.dispose();
     _repsController.dispose();
     _videoController?.close();
@@ -113,6 +126,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       );
       _logging = true;
     });
+    _startRestTimer();
     try {
       final workoutExerciseId = await _ensureWorkoutExercise();
       if (workoutExerciseId == null) return;
@@ -141,6 +155,67 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     } finally {
       if (mounted) setState(() => _logging = false);
     }
+  }
+
+  void _startRestTimer() {
+    _restTimer?.cancel();
+    _restEndsAt = widget.now().add(widget.restDuration);
+    setState(() => _restSeconds = widget.restDuration.inSeconds);
+    _scheduleRestTicks();
+  }
+
+  void _scheduleRestTicks() {
+    _restTimer?.cancel();
+    _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return timer.cancel();
+      _refreshRestTime(notifyWhenFinished: true);
+    });
+  }
+
+  void _refreshRestTime({required bool notifyWhenFinished}) {
+    final deadline = _restEndsAt;
+    if (deadline == null) return;
+    final milliseconds = deadline.difference(widget.now()).inMilliseconds;
+    if (milliseconds <= 0) {
+      _restTimer?.cancel();
+      _restEndsAt = null;
+      setState(() => _restSeconds = 0);
+      if (notifyWhenFinished) HapticFeedback.mediumImpact();
+      return;
+    }
+    final remaining = (milliseconds + 999) ~/ 1000;
+    if (remaining != _restSeconds) setState(() => _restSeconds = remaining);
+  }
+
+  void _addRestTime() {
+    final deadline = _restEndsAt;
+    if (deadline == null) return;
+    _restEndsAt = deadline.add(const Duration(seconds: 30));
+    _refreshRestTime(notifyWhenFinished: false);
+  }
+
+  void _skipRest() {
+    _restTimer?.cancel();
+    _restEndsAt = null;
+    setState(() => _restSeconds = 0);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshRestTime(notifyWhenFinished: true);
+      if (_restEndsAt != null) _scheduleRestTicks();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _restTimer?.cancel();
+    }
+  }
+
+  String get _restLabel {
+    final minutes = _restSeconds ~/ 60;
+    final seconds = (_restSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   String _newOperationId(String kind, int sequence) =>
@@ -303,6 +378,49 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   ),
                 ],
                 const SizedBox(height: 16),
+                if (_restSeconds > 0) ...[
+                  Card(
+                    key: const Key('rest-timer'),
+                    color: NicoGymColors.ink,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.timer_outlined,
+                            color: NicoGymColors.lime,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'NGHỈ  $_restLabel',
+                              key: const Key('rest-timer-label'),
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(color: Colors.white),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _addRestTime,
+                            child: const Text('+30s'),
+                          ),
+                          TextButton(
+                            onPressed: _skipRest,
+                            child: const Text('Bỏ qua'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (_sets.isNotEmpty) ...[
+                  Text(
+                    'Hiệp trước: ${_sets.last}',
+                    key: const Key('previous-set'),
+                    style: const TextStyle(color: NicoGymColors.muted),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 Text(
                   'HIỆP ${_sets.length + 1}',
                   style: Theme.of(context).textTheme.labelLarge,

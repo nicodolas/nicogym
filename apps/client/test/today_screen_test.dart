@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nicogym/app.dart';
+import 'package:nicogym/features/workout/workout_screen.dart';
 import 'package:nicogym/workouts/exercise.dart';
 import 'package:nicogym/workouts/workout_api.dart';
 
@@ -107,6 +108,16 @@ void main() {
     expect(find.text('40 kg × 10'), findsOneWidget);
     expect(find.text('HIỆP 2'), findsOneWidget);
     expect(find.text('Đã đồng bộ hiệp 1'), findsOneWidget);
+    expect(find.byKey(const Key('previous-set')), findsOneWidget);
+    expect(find.byKey(const Key('rest-timer')), findsOneWidget);
+    final beforeExtension = _timerSeconds(tester);
+    await tester.tap(find.text('+30s'));
+    await tester.pump();
+    final afterExtension = _timerSeconds(tester);
+    expect(afterExtension - beforeExtension, inInclusiveRange(29, 30));
+    await tester.tap(find.text('Bỏ qua'));
+    await tester.pump();
+    expect(find.byKey(const Key('rest-timer')), findsNothing);
     expect(workoutRepository.logged, [(40.0, 10)]);
   });
 
@@ -143,6 +154,39 @@ void main() {
     );
   });
 
+  testWidgets('rest timer expires accurately while the app is paused', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    var now = DateTime(2026, 8, 13, 20);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WorkoutScreen(
+          exercise: testExercises.first,
+          now: () => now,
+          workoutRepository: _MemoryWorkoutRepository(),
+        ),
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.text('Ghi hiệp'),
+      400,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Ghi hiệp'));
+    await tester.pump();
+    expect(find.byKey(const Key('rest-timer')), findsOneWidget);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    now = now.add(const Duration(seconds: 91));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
+    expect(find.byKey(const Key('rest-timer')), findsNothing);
+  });
+
   testWidgets('retries pending sets after synchronization recovers', (
     tester,
   ) async {
@@ -164,6 +208,11 @@ void main() {
 
     await tester.tap(find.text('Ghi hiệp'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Ghi hiệp'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.tap(find.text('Ghi hiệp'));
     await tester.pumpAndSettle();
 
@@ -200,6 +249,11 @@ void main() {
 
     await tester.tap(find.text('Ghi hiệp'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Ghi hiệp'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.tap(find.text('Ghi hiệp'));
     await tester.pumpAndSettle();
 
@@ -289,6 +343,12 @@ void main() {
     expect(find.text('Giữ lịch chân'), findsOneWidget);
     expect(find.text('Xác nhận đổi'), findsOneWidget);
   });
+}
+
+int _timerSeconds(WidgetTester tester) {
+  final label = tester.widget<Text>(find.byKey(const Key('rest-timer-label')));
+  final value = label.data!.split(RegExp(r'\s+')).last.split(':');
+  return int.parse(value.first) * 60 + int.parse(value.last);
 }
 
 class _MemoryWorkoutRepository implements WorkoutRepository {
