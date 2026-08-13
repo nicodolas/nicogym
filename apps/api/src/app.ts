@@ -26,12 +26,18 @@ const plannerStateSchema = z.object({
   recoveryHours: z.number().int().min(24).max(96),
   todayWorkout: z.string().trim().min(1).max(80),
   suggestionAccepted: z.boolean(),
+  goal: z.enum(["muscle_strength", "general_fitness"]).optional(),
+  sessionMinutes: z.union([z.literal(30), z.literal(45), z.literal(60)]).optional(),
 }).refine(
   (state) => new Set(state.weeklySchedule.map((session) => session.day)).size === state.weeklySchedule.length,
   { message: "duplicate_schedule_day", path: ["weeklySchedule"] },
 );
 
-type PlannerState = z.infer<typeof plannerStateSchema>;
+type PlannerStateUpdate = z.infer<typeof plannerStateSchema>;
+type PlannerState = PlannerStateUpdate & {
+  goal: "muscle_strength" | "general_fitness";
+  sessionMinutes: 30 | 45 | 60;
+};
 
 interface CurrentUser {
   id: string;
@@ -75,7 +81,7 @@ export interface AppDependencies {
   workoutWriteAllowed?: (userId: string) => boolean | Promise<boolean>;
   plannerStates?: {
     get: (userId: string) => Promise<PlannerState | null>;
-    upsert: (userId: string, state: PlannerState) => Promise<PlannerState>;
+    upsert: (userId: string, state: PlannerStateUpdate) => Promise<PlannerState>;
   };
   plannerWriteAllowed?: (userId: string) => boolean | Promise<boolean>;
   exerciseCatalog?: {

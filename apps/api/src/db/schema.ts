@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   doublePrecision,
   integer,
   index,
@@ -12,6 +13,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 import { user } from "./auth-schema.js";
 
@@ -154,18 +156,33 @@ export const recoveryPreferences = pgTable(
   (table) => [primaryKey({ columns: [table.profileId, table.muscleGroupId] })],
 );
 
-export const plannerStates = pgTable("planner_states", {
-  profileId: uuid("profile_id")
-    .primaryKey()
-    .references(() => profiles.id, { onDelete: "cascade" }),
-  weeklySchedule: jsonb("weekly_schedule")
-    .$type<Array<{ day: number; title: string }>>()
-    .notNull(),
-  recoveryHours: integer("recovery_hours").notNull().default(48),
-  todayWorkout: text("today_workout").notNull().default("Chân + Mông"),
-  suggestionAccepted: boolean("suggestion_accepted").notNull().default(false),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const plannerStates = pgTable(
+  "planner_states",
+  {
+    profileId: uuid("profile_id")
+      .primaryKey()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    weeklySchedule: jsonb("weekly_schedule")
+      .$type<Array<{ day: number; title: string }>>()
+      .notNull(),
+    recoveryHours: integer("recovery_hours").notNull().default(48),
+    todayWorkout: text("today_workout").notNull().default("Chân + Mông"),
+    suggestionAccepted: boolean("suggestion_accepted").notNull().default(false),
+    goal: text("goal").notNull().default("muscle_strength"),
+    sessionMinutes: integer("session_minutes").notNull().default(45),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "planner_states_goal_check",
+      sql`${table.goal} in ('muscle_strength', 'general_fitness')`,
+    ),
+    check(
+      "planner_states_session_minutes_check",
+      sql`${table.sessionMinutes} in (30, 45, 60)`,
+    ),
+  ],
+);
 
 export const apiRateLimits = pgTable(
   "api_rate_limits",

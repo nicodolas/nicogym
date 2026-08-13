@@ -168,6 +168,62 @@ void main() {
     expect(find.text('72 giờ trước khi tập lại cùng nhóm cơ'), findsOneWidget);
   });
 
+  testWidgets('creates an editable starter plan for a new member', (
+    tester,
+  ) async {
+    final repository = _MemoryPlannerRepository(null);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemberHubScreen(
+          exerciseLoader: () async => const [chestExercise],
+          onOpenExercise: (_) {},
+          initialTab: 1,
+          plannerRepository: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('planner-onboarding')), findsOneWidget);
+    await tester.tap(find.text('Khỏe hơn'));
+    await tester.tap(find.text('4 buổi'));
+    await tester.ensureVisible(find.text('60 phút'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('60 phút'));
+    await tester.ensureVisible(find.byKey(const Key('create-sample-plan')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('create-sample-plan')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('planner-onboarding')), findsNothing);
+    expect(repository.saved?.weeklySchedule, hasLength(4));
+    expect(
+      repository.saved!.weeklySchedule.map((session) => session.title),
+      contains(repository.saved?.todayWorkout),
+    );
+    expect(repository.saved?.goal, 'general_fitness');
+    expect(repository.saved?.sessionMinutes, 60);
+    expect(find.text('60 phút · 5 bài · 15 hiệp'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('schedule-1')),
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const Key('schedule-1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'Toàn thân B');
+    await tester.tap(find.text('Lưu'));
+    await tester.pump();
+    expect(find.text('Tên buổi tập đã tồn tại.'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextFormField), 'Buổi toàn thân mới');
+    await tester.tap(find.text('Lưu'));
+    await tester.pumpAndSettle();
+
+    expect(repository.saved?.weeklySchedule.first.title, 'Buổi toàn thân mới');
+  });
+
   testWidgets('submits the latest planner snapshot while a save is pending', (
     tester,
   ) async {

@@ -412,6 +412,10 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
   int _activeSaves = 0;
   String? _syncError;
   bool _retryLoad = false;
+  bool _needsOnboarding = false;
+  String _onboardingGoal = 'muscle_strength';
+  int _onboardingDays = 3;
+  int _onboardingMinutes = 45;
 
   bool get _saving => _activeSaves > 0;
 
@@ -428,10 +432,13 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
       final state = result.state ?? PlannerState.defaults;
       if (!mounted) return;
       setState(() {
+        _needsOnboarding = result.state == null;
         _weeklySchedule = state.weeklySchedule;
         _recoveryHours = state.recoveryHours.toDouble();
         _todayWorkout = state.todayWorkout;
         _suggestionAccepted = state.suggestionAccepted;
+        _onboardingGoal = state.goal;
+        _onboardingMinutes = state.sessionMinutes;
         _syncError = result.usedOfflineFallback
             ? 'Đang dùng lịch đã lưu trên thiết bị. Chạm để đồng bộ lại.'
             : null;
@@ -456,6 +463,8 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
       recoveryHours: _recoveryHours.round(),
       todayWorkout: _todayWorkout,
       suggestionAccepted: _suggestionAccepted,
+      goal: _onboardingGoal,
+      sessionMinutes: _onboardingMinutes,
     );
     setState(() {
       _activeSaves += 1;
@@ -476,9 +485,155 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
     }
   }
 
+  Future<void> _finishOnboarding() async {
+    final schedule = _sampleSchedule(_onboardingDays);
+    final nextSession = _nextSession(schedule, DateTime.now().weekday);
+    setState(() {
+      _weeklySchedule = schedule;
+      _todayWorkout = nextSession.title;
+      _suggestionAccepted = false;
+      _dismissedSuggestion = false;
+      _needsOnboarding = false;
+    });
+    await _save();
+  }
+
+  PlannedSession _nextSession(List<PlannedSession> schedule, int weekday) {
+    final ordered = [...schedule]..sort((a, b) => a.day.compareTo(b.day));
+    return ordered.firstWhere(
+      (session) => session.day >= weekday,
+      orElse: () => ordered.first,
+    );
+  }
+
+  Future<void> _editSession(PlannedSession session) async {
+    var title = session.title;
+    String? titleError;
+    var selectedDay = session.day;
+    final usedDays = _weeklySchedule
+        .where((item) => item != session)
+        .map((item) => item.day)
+        .toSet();
+    final updated = await showDialog<PlannedSession>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Sửa buổi tập'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  initialValue: title,
+                  maxLength: 80,
+                  decoration: InputDecoration(
+                    labelText: 'Tên buổi tập',
+                    errorText: titleError,
+                  ),
+                  onChanged: (value) => title = value,
+                ),
+                DropdownButtonFormField<int>(
+                  initialValue: selectedDay,
+                  decoration: const InputDecoration(labelText: 'Ngày tập'),
+                  items: [
+                    for (var day = 1; day <= 7; day++)
+                      if (!usedDays.contains(day))
+                        DropdownMenuItem(
+                          value: day,
+                          child: Text(_dayLabel(day)),
+                        ),
+                  ],
+                  onChanged: (value) =>
+                      setDialogState(() => selectedDay = value ?? selectedDay),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final normalizedTitle = title.trim();
+                final duplicate = _weeklySchedule.any(
+                  (item) =>
+                      item != session &&
+                      item.title.toLowerCase() == normalizedTitle.toLowerCase(),
+                );
+                if (normalizedTitle.isEmpty || duplicate) {
+                  setDialogState(
+                    () => titleError = normalizedTitle.isEmpty
+                        ? 'Nhập tên buổi tập.'
+                        : 'Tên buổi tập đã tồn tại.',
+                  );
+                } else {
+                  Navigator.pop(
+                    context,
+                    PlannedSession(day: selectedDay, title: normalizedTitle),
+                  );
+                }
+              },
+              child: const Text('Lưu'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (updated == null || !mounted) return;
+    setState(() {
+      _weeklySchedule =
+          _weeklySchedule
+              .map((item) => item == session ? updated : item)
+              .toList()
+            ..sort((a, b) => a.day.compareTo(b.day));
+      if (_todayWorkout == session.title) _todayWorkout = updated.title;
+    });
+    await _save();
+  }
+
+  List<PlannedSession> _sampleSchedule(int days) {
+    if (_onboardingGoal == 'general_fitness') {
+      const daySlots = [1, 3, 5, 7];
+      return List.generate(
+        days,
+        (index) => PlannedSession(
+          day: daySlots[index],
+          title: 'Toàn thân ${String.fromCharCode(65 + index)}',
+        ),
+      );
+    }
+    return switch (days) {
+      2 => const [
+        PlannedSession(day: 2, title: 'Toàn thân A'),
+        PlannedSession(day: 5, title: 'Toàn thân B'),
+      ],
+      4 => const [
+        PlannedSession(day: 1, title: 'Thân trên A'),
+        PlannedSession(day: 2, title: 'Thân dưới A'),
+        PlannedSession(day: 4, title: 'Thân trên B'),
+        PlannedSession(day: 6, title: 'Thân dưới B'),
+      ],
+      _ => PlannerState.defaults.weeklySchedule,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_needsOnboarding) return _buildOnboarding(context);
     const elapsedRecoveryHours = 24;
+    final exerciseCount = switch (_onboardingMinutes) {
+      30 => 3,
+      60 => 5,
+      _ => 4,
+    };
+    final isScheduledToday = _weeklySchedule.any(
+      (session) =>
+          session.day == DateTime.now().weekday &&
+          session.title == _todayWorkout,
+    );
     final musclesReady = elapsedRecoveryHours >= _recoveryHours;
     final alternativeWorkout = _weeklySchedule
         .map((session) => session.title)
@@ -516,13 +671,15 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('HÔM NAY'),
+                Text(isScheduledToday ? 'HÔM NAY' : 'BUỔI TIẾP THEO'),
                 const SizedBox(height: 8),
                 Text(
                   _todayWorkout,
                   style: Theme.of(context).textTheme.headlineLarge,
                 ),
-                const Text('45 phút · 4 bài · 12 hiệp'),
+                Text(
+                  '$_onboardingMinutes phút · $exerciseCount bài · ${exerciseCount * 3} hiệp',
+                ),
               ],
             ),
           ),
@@ -582,11 +739,13 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
         const SizedBox(height: 8),
         for (final session in _weeklySchedule)
           ListTile(
+            key: ValueKey('schedule-${session.day}'),
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.calendar_today_outlined),
             title: Text(session.title),
             subtitle: Text(_dayLabel(session.day)),
-            trailing: const Icon(Icons.drag_handle_rounded),
+            trailing: const Icon(Icons.edit_outlined),
+            onTap: _saving ? null : () => _editSession(session),
           ),
         const Divider(height: 32),
         Text(
@@ -611,6 +770,72 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
       ],
     );
   }
+
+  Widget _buildOnboarding(BuildContext context) => ListView(
+    key: const Key('planner-onboarding'),
+    padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+    children: [
+      Text(
+        'BẮT ĐẦU NHẸ NHÀNG',
+        style: Theme.of(context).textTheme.displayLarge,
+      ),
+      const SizedBox(height: 8),
+      const Text(
+        'Chọn vài thông tin cơ bản. NicoGym sẽ tạo lịch mẫu; bạn luôn có thể sửa lại sau.',
+      ),
+      const SizedBox(height: 24),
+      Text('MỤC TIÊU', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      SegmentedButton<String>(
+        segments: const [
+          ButtonSegment(value: 'muscle_strength', label: Text('Tăng cơ')),
+          ButtonSegment(value: 'general_fitness', label: Text('Khỏe hơn')),
+        ],
+        selected: {_onboardingGoal},
+        onSelectionChanged: (value) =>
+            setState(() => _onboardingGoal = value.first),
+      ),
+      const SizedBox(height: 22),
+      Text('SỐ BUỔI MỖI TUẦN', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      SegmentedButton<int>(
+        segments: const [
+          ButtonSegment(value: 2, label: Text('2 buổi')),
+          ButtonSegment(value: 3, label: Text('3 buổi')),
+          ButtonSegment(value: 4, label: Text('4 buổi')),
+        ],
+        selected: {_onboardingDays},
+        onSelectionChanged: (value) =>
+            setState(() => _onboardingDays = value.first),
+      ),
+      const SizedBox(height: 22),
+      Text('THỜI GIAN MỖI BUỔI', style: Theme.of(context).textTheme.titleLarge),
+      SegmentedButton<int>(
+        segments: const [
+          ButtonSegment(value: 30, label: Text('30 phút')),
+          ButtonSegment(value: 45, label: Text('45 phút')),
+          ButtonSegment(value: 60, label: Text('60 phút')),
+        ],
+        selected: {_onboardingMinutes},
+        onSelectionChanged: (value) =>
+            setState(() => _onboardingMinutes = value.first),
+      ),
+      const SizedBox(height: 16),
+      FilledButton.icon(
+        key: const Key('create-sample-plan'),
+        onPressed: _saving ? null : _finishOnboarding,
+        icon: const Icon(Icons.auto_awesome_outlined),
+        label: Text(
+          'Tạo lịch $_onboardingDays buổi · $_onboardingMinutes phút',
+        ),
+      ),
+      const SizedBox(height: 10),
+      Text(
+        'Đây là lịch khởi đầu theo mục tiêu đã chọn, không phải chỉ định y tế.',
+        textAlign: TextAlign.center,
+      ),
+    ],
+  );
 
   String _dayLabel(int day) => switch (day) {
     1 => 'Thứ hai',

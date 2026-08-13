@@ -169,7 +169,9 @@ export function createProductionApp() {
             planner_states.weekly_schedule as "weeklySchedule",
             planner_states.recovery_hours as "recoveryHours",
             planner_states.today_workout as "todayWorkout",
-            planner_states.suggestion_accepted as "suggestionAccepted"
+            planner_states.suggestion_accepted as "suggestionAccepted",
+            planner_states.goal,
+            planner_states.session_minutes as "sessionMinutes"
           from planner_states
           inner join profiles on profiles.id = planner_states.profile_id
           where profiles.auth_user_id = ${userId}
@@ -180,6 +182,8 @@ export function createProductionApp() {
           recoveryHours: number;
           todayWorkout: string;
           suggestionAccepted: boolean;
+          goal: "muscle_strength" | "general_fitness";
+          sessionMinutes: 30 | 45 | 60;
         } | undefined) ?? null;
       },
       upsert: async (userId, state) => {
@@ -191,23 +195,35 @@ export function createProductionApp() {
         const result = await database.execute(sql`
           insert into planner_states (
             profile_id, weekly_schedule, recovery_hours, today_workout,
-            suggestion_accepted, updated_at
+            suggestion_accepted, goal, session_minutes, updated_at
           )
           select id, ${JSON.stringify(state.weeklySchedule)}::jsonb,
             ${state.recoveryHours}, ${state.todayWorkout},
-            ${state.suggestionAccepted}, now()
+            ${state.suggestionAccepted},
+            coalesce(${state.goal ?? null}, 'muscle_strength'),
+            coalesce(${state.sessionMinutes ?? null}, 45), now()
           from profiles where auth_user_id = ${userId}
           on conflict (profile_id) do update set
             weekly_schedule = excluded.weekly_schedule,
             recovery_hours = excluded.recovery_hours,
             today_workout = excluded.today_workout,
             suggestion_accepted = excluded.suggestion_accepted,
+            goal = coalesce(${state.goal ?? null}, planner_states.goal),
+            session_minutes = coalesce(
+              ${state.sessionMinutes ?? null}, planner_states.session_minutes
+            ),
             updated_at = now()
           returning weekly_schedule as "weeklySchedule",
             recovery_hours as "recoveryHours", today_workout as "todayWorkout",
-            suggestion_accepted as "suggestionAccepted"
+            suggestion_accepted as "suggestionAccepted", goal,
+            session_minutes as "sessionMinutes"
         `);
-        const saved = result.rows[0] as typeof state | undefined;
+        const saved = result.rows[0] as
+          | (Omit<typeof state, "goal" | "sessionMinutes"> & {
+              goal: "muscle_strength" | "general_fitness";
+              sessionMinutes: 30 | 45 | 60;
+            })
+          | undefined;
         if (!saved) throw new Error("planner_upsert_failed");
         return saved;
       },
