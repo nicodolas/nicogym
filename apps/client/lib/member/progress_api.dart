@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -73,9 +74,12 @@ class ProgressApi implements ProgressRepository {
   final Uri baseUrl;
   final ConditionalTokenStore tokenStore;
   final http.Client _client;
+  final Set<Future<void>> _pendingRequests = {};
 
   @override
-  Future<ProgressSummary> load() async {
+  Future<ProgressSummary> load() => _track(_requestProgress());
+
+  Future<ProgressSummary> _requestProgress() async {
     try {
       final token = await tokenStore.read();
       if (token == null || token.isEmpty) {
@@ -112,6 +116,21 @@ class ProgressApi implements ProgressRepository {
       );
     } catch (_) {
       throw const ProgressException('Không kết nối được máy chủ.');
+    }
+  }
+
+  Future<T> _track<T>(Future<T> request) {
+    late final Future<void> completion;
+    completion = request
+        .then<void>((_) {}, onError: (_, _) {})
+        .whenComplete(() => _pendingRequests.remove(completion));
+    _pendingRequests.add(completion);
+    return request;
+  }
+
+  Future<void> whenIdle() async {
+    while (_pendingRequests.isNotEmpty) {
+      await Future.wait(_pendingRequests.toList(growable: false));
     }
   }
 

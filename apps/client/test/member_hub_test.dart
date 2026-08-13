@@ -283,6 +283,13 @@ void main() {
 
     expect(find.text('Phiên đăng nhập đã hết hạn.'), findsOneWidget);
     expect(find.text('Thử lại'), findsOneWidget);
+    expect(find.byType(RefreshIndicator), findsOneWidget);
+    expect(
+      tester
+          .widget<ListView>(find.byKey(const Key('progress-error-view')))
+          .physics,
+      isA<AlwaysScrollableScrollPhysics>(),
+    );
     await tester.tap(find.text('Thử lại'));
     await tester.pumpAndSettle();
     expect(find.text('Phiên đăng nhập đã hết hạn.'), findsOneWidget);

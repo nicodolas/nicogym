@@ -209,7 +209,10 @@ class _TodayHeaderState extends State<TodayHeader> {
       onTimeout: () {},
     );
     catalogApi.close();
-    progressApi?.close();
+    if (progressApi != null) {
+      await progressApi.whenIdle();
+      progressApi.close();
+    }
   }
 
   Future<void> _openAccount(BuildContext context) async {

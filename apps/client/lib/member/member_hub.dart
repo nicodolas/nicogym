@@ -145,19 +145,25 @@ class _ProgressViewState extends State<_ProgressView> {
         final message = snapshot.error is ProgressException
             ? (snapshot.error! as ProgressException).message
             : 'Chưa tải được tiến độ.';
-        return Center(
-          child: Padding(
+        return RefreshIndicator(
+          onRefresh: _retry,
+          child: ListView(
+            key: const Key('progress-error-view'),
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.cloud_off_outlined, size: 40),
-                const SizedBox(height: 12),
-                Text(message, textAlign: TextAlign.center),
-                const SizedBox(height: 12),
-                OutlinedButton(onPressed: _retry, child: const Text('Thử lại')),
-              ],
-            ),
+            children: [
+              const SizedBox(height: 120),
+              const Icon(Icons.cloud_off_outlined, size: 40),
+              const SizedBox(height: 12),
+              Text(message, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              Center(
+                child: OutlinedButton(
+                  onPressed: _retry,
+                  child: const Text('Thử lại'),
+                ),
+              ),
+            ],
           ),
         );
       }

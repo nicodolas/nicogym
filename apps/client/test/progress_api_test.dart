@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -72,6 +73,36 @@ void main() {
       ),
     );
   });
+
+  test(
+    'waits for an in-flight progress request before becoming idle',
+    () async {
+      final response = Completer<http.Response>();
+      final api = ProgressApi(
+        baseUrl: Uri.parse('https://api.example.test'),
+        tokenStore: _TokenStore('token'),
+        client: MockClient((_) => response.future),
+      );
+
+      final request = api.load();
+      var idle = false;
+      final waiting = api.whenIdle().then((_) => idle = true);
+      await Future<void>.delayed(Duration.zero);
+      expect(idle, isFalse);
+
+      response.complete(
+        http.Response(
+          jsonEncode({
+            'data': {'sessions': 0, 'sets': 0, 'volumeKg': 0, 'latest': []},
+          }),
+          200,
+        ),
+      );
+      await request;
+      await waiting;
+      expect(idle, isTrue);
+    },
+  );
 }
 
 class _TokenStore implements ConditionalTokenStore {
