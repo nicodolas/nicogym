@@ -153,10 +153,12 @@ class _TodayHeaderState extends State<TodayHeader> {
       baseUrl: Uri.parse(widget.apiBaseUrl),
       tokenStore: authTokenStore,
     );
-    final progressApi = ProgressApi(
-      baseUrl: Uri.parse(widget.apiBaseUrl),
-      tokenStore: authTokenStore,
-    );
+    final progressApi = authTokenStore is ConditionalTokenStore
+        ? ProgressApi(
+            baseUrl: Uri.parse(widget.apiBaseUrl),
+            tokenStore: authTokenStore,
+          )
+        : null;
     try {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -198,7 +200,7 @@ class _TodayHeaderState extends State<TodayHeader> {
   Future<void> _closeMemberResources(
     CachedPlannerRepository plannerRepository,
     CatalogApi catalogApi,
-    ProgressApi progressApi,
+    ProgressApi? progressApi,
   ) async {
     await plannerRepository.whenIdle();
     plannerRepository.close();
@@ -207,7 +209,7 @@ class _TodayHeaderState extends State<TodayHeader> {
       onTimeout: () {},
     );
     catalogApi.close();
-    progressApi.close();
+    progressApi?.close();
   }
 
   Future<void> _openAccount(BuildContext context) async {

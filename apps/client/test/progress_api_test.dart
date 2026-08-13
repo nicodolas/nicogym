@@ -74,12 +74,19 @@ void main() {
   });
 }
 
-class _TokenStore implements TokenStore {
+class _TokenStore implements ConditionalTokenStore {
   _TokenStore(this.token);
   String? token;
 
   @override
   Future<void> clear() async => token = null;
+
+  @override
+  Future<bool> clearIfMatches(String expectedToken) async {
+    if (token != expectedToken) return false;
+    token = null;
+    return true;
+  }
 
   @override
   Future<String?> read() async => token;

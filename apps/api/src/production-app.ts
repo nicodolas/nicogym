@@ -229,7 +229,7 @@ export function createProductionApp() {
               and workout_sessions.profile_id = member.id
             inner join exercises on exercises.id = workout_exercises.exercise_id
           ), latest as (
-            select "exerciseSlug", "exerciseName", load_kg as "loadKg",
+            select id, "exerciseSlug", "exerciseName", load_kg as "loadKg",
               repetitions, completed_at as "completedAt"
             from owned_sets
             order by completed_at desc, id desc
@@ -238,7 +238,7 @@ export function createProductionApp() {
           select count(distinct session_id)::int as sessions,
             count(*)::int as sets,
             coalesce(sum(load_kg * repetitions), 0)::float8 as "volumeKg",
-            coalesce((select jsonb_agg(latest) from latest), '[]'::jsonb) as latest
+            coalesce((select jsonb_agg(latest order by "completedAt" desc, id desc) from latest), '[]'::jsonb) as latest
           from owned_sets
         `);
         const row = result.rows[0];

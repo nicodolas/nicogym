@@ -245,7 +245,9 @@ class _ProgressMetric extends StatelessWidget {
   );
 }
 
-String _formatLoad(double value) => value.toString();
+String _formatLoad(double value) => value == value.truncateToDouble()
+    ? value.toStringAsFixed(0)
+    : value.toString();
 
 String _progressDate(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';

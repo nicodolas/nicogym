@@ -216,8 +216,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('TIẾN ĐỘ'), findsOneWidget);
-    expect(find.text('2'), findsOneWidget);
-    expect(find.text('6'), findsOneWidget);
+    final progress = find.byKey(const Key('progress-view'));
+    expect(
+      find.descendant(of: progress, matching: find.text('2')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: progress, matching: find.text('6')),
+      findsOneWidget,
+    );
     expect(find.text('2400.4 kg'), findsOneWidget);
     expect(find.text('Leg press'), findsOneWidget);
     expect(find.text('40.125 kg × 10'), findsOneWidget);

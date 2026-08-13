@@ -71,7 +71,7 @@ class ProgressApi implements ProgressRepository {
   }) : _client = client ?? http.Client();
 
   final Uri baseUrl;
-  final TokenStore tokenStore;
+  final ConditionalTokenStore tokenStore;
   final http.Client _client;
 
   @override
@@ -88,11 +88,7 @@ class ProgressApi implements ProgressRepository {
           )
           .timeout(const Duration(seconds: 15));
       if (response.statusCode == 401) {
-        if (tokenStore case final ConditionalTokenStore conditional) {
-          await conditional.clearIfMatches(token);
-        } else if (await tokenStore.read() == token) {
-          await tokenStore.clear();
-        }
+        await tokenStore.clearIfMatches(token);
         throw const ProgressException('Phiên đăng nhập đã hết hạn.');
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
