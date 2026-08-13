@@ -37,20 +37,41 @@ class NicoGymApp extends StatefulWidget {
 }
 
 class _NicoGymAppState extends State<NicoGymApp> {
-  late final TokenStore _tokenStore =
-      widget.memberTokenStore ?? SecureTokenStore();
-  late final WorkoutRepository _workoutRepository =
-      widget.workoutRepository ??
-      WorkoutApi(
-        baseUrl: Uri.parse(widget.apiBaseUrl),
-        tokenStore: _tokenStore,
-      );
+  late TokenStore _tokenStore;
+  late WorkoutRepository _workoutRepository;
+  WorkoutApi? _ownedWorkoutApi;
+
+  @override
+  void initState() {
+    super.initState();
+    _configureDependencies();
+  }
+
+  @override
+  void didUpdateWidget(covariant NicoGymApp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.memberTokenStore != widget.memberTokenStore ||
+        oldWidget.workoutRepository != widget.workoutRepository ||
+        oldWidget.apiBaseUrl != widget.apiBaseUrl) {
+      _ownedWorkoutApi?.close();
+      _configureDependencies();
+    }
+  }
+
+  void _configureDependencies() {
+    _tokenStore = widget.memberTokenStore ?? SecureTokenStore();
+    _ownedWorkoutApi = widget.workoutRepository == null
+        ? WorkoutApi(
+            baseUrl: Uri.parse(widget.apiBaseUrl),
+            tokenStore: _tokenStore,
+          )
+        : null;
+    _workoutRepository = widget.workoutRepository ?? _ownedWorkoutApi!;
+  }
 
   @override
   void dispose() {
-    if (widget.workoutRepository == null) {
-      (_workoutRepository as WorkoutApi).close();
-    }
+    _ownedWorkoutApi?.close();
     super.dispose();
   }
 

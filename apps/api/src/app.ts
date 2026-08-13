@@ -8,12 +8,14 @@ import { exerciseImportSchema, importApplySchema, type ExerciseImport } from "./
 
 const workoutSetSchema = z.object({
   workoutExerciseId: z.string().uuid(),
+  operationId: z.string().trim().min(8).max(120).regex(/^[a-zA-Z0-9._:-]+$/),
   loadKg: z.number().min(0),
   repetitions: z.number().int().min(1).max(1000),
 });
 
 const workoutSessionSchema = z.object({
   exerciseSlug: z.string().trim().min(1).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  operationId: z.string().trim().min(8).max(120).regex(/^[a-zA-Z0-9._:-]+$/),
 });
 
 const plannerStateSchema = z.object({
@@ -39,6 +41,7 @@ interface CurrentUser {
 interface WorkoutSetInsert {
   userId: string;
   workoutExerciseId: string;
+  operationId: string;
   loadKg: number;
   repetitions: number;
 }
@@ -46,6 +49,7 @@ interface WorkoutSetInsert {
 interface WorkoutSessionStart {
   userId: string;
   exerciseSlug: string;
+  operationId: string;
 }
 
 export interface AppDependencies {
@@ -249,6 +253,7 @@ export function createApp(dependencies: AppDependencies = {}) {
     const workoutExerciseId = await dependencies.workoutSessions.start({
       userId: user.id,
       exerciseSlug: parsed.data.exerciseSlug,
+      operationId: parsed.data.operationId,
     });
     if (!workoutExerciseId) return context.json({ error: "exercise_not_found" }, 404);
     return context.json({ data: { workoutExerciseId } }, 201);

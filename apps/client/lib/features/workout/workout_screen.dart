@@ -11,11 +11,11 @@ class WorkoutScreen extends StatefulWidget {
   const WorkoutScreen({
     super.key,
     required this.exercise,
-    this.workoutRepository,
+    required this.workoutRepository,
   });
 
   final Exercise exercise;
-  final WorkoutRepository? workoutRepository;
+  final WorkoutRepository workoutRepository;
 
   @override
   State<WorkoutScreen> createState() => _WorkoutScreenState();
@@ -30,13 +30,12 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   Future<String?>? _workoutExercise;
   String? _syncMessage;
   bool _logging = false;
+  late final String _sessionOperationId = _newOperationId('session', 0);
+  var _operationSequence = 0;
 
   @override
   void initState() {
     super.initState();
-    if (widget.workoutRepository != null) {
-      _workoutExercise = _startExercise();
-    }
     final videoId = widget.exercise.videoId;
     if (videoId != null && videoId.isNotEmpty) {
       _videoController = YoutubePlayerController.fromVideoId(
@@ -62,8 +61,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   Future<String?> _startExercise() async {
     try {
-      final id = await widget.workoutRepository!.startExercise(
+      final id = await widget.workoutRepository.startExercise(
         widget.exercise.id,
+        operationId: _sessionOperationId,
       );
       if (mounted) setState(() => _syncMessage = 'Buổi tập đã sẵn sàng');
       return id;
@@ -79,7 +79,6 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   }
 
   Future<String?> _ensureWorkoutExercise() async {
-    if (widget.workoutRepository == null) return null;
     final current = await _workoutExercise;
     if (current != null) return current;
     _workoutExercise = _startExercise();
@@ -104,16 +103,24 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     if (_logging) return;
     setState(() {
       _sets.add('${load.toStringAsFixed(load % 1 == 0 ? 0 : 1)} kg × $reps');
-      _pendingSets.add(_PendingSet(loadKg: load, repetitions: reps));
+      _operationSequence += 1;
+      _pendingSets.add(
+        _PendingSet(
+          operationId: _newOperationId('set', _operationSequence),
+          loadKg: load,
+          repetitions: reps,
+        ),
+      );
       _logging = true;
     });
     try {
       final workoutExerciseId = await _ensureWorkoutExercise();
-      if (workoutExerciseId == null || widget.workoutRepository == null) return;
+      if (workoutExerciseId == null) return;
       while (_pendingSets.isNotEmpty) {
         final pending = _pendingSets.first;
-        await widget.workoutRepository!.logSet(
+        await widget.workoutRepository.logSet(
           workoutExerciseId: workoutExerciseId,
+          operationId: pending.operationId,
           loadKg: pending.loadKg,
           repetitions: pending.repetitions,
         );
@@ -123,6 +130,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         setState(() => _syncMessage = 'Đã đồng bộ hiệp ${_sets.length}');
       }
     } on WorkoutSyncException catch (error) {
+      if (error.code == 'workout_exercise_not_found') {
+        _workoutExercise = null;
+      }
       if (mounted) setState(() => _syncMessage = error.message);
     } catch (_) {
       if (mounted) {
@@ -132,6 +142,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       if (mounted) setState(() => _logging = false);
     }
   }
+
+  String _newOperationId(String kind, int sequence) =>
+      '$kind-${DateTime.now().microsecondsSinceEpoch}-${identityHashCode(this)}-$sequence';
 
   @override
   Widget build(BuildContext context) {
@@ -371,8 +384,13 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 }
 
 class _PendingSet {
-  const _PendingSet({required this.loadKg, required this.repetitions});
+  const _PendingSet({
+    required this.operationId,
+    required this.loadKg,
+    required this.repetitions,
+  });
 
+  final String operationId;
   final double loadKg;
   final int repetitions;
 }

@@ -213,7 +213,7 @@ export function createProductionApp() {
       },
     },
     workoutSessions: {
-      start: async ({ userId, exerciseSlug }) => {
+      start: async ({ userId, exerciseSlug, operationId }) => {
         await database.execute(sql`
           insert into profiles (auth_user_id)
           values (${userId})
@@ -221,14 +221,16 @@ export function createProductionApp() {
         `);
         const result = await database.execute(sql`
           with created_session as (
-            insert into workout_sessions (profile_id)
-            select profiles.id
+            insert into workout_sessions (profile_id, operation_id)
+            select profiles.id, ${operationId}
             from profiles
             where profiles.auth_user_id = ${userId}
               and exists (
                 select 1 from exercises
                 where exercises.slug = ${exerciseSlug} and exercises.archived = false
               )
+            on conflict (profile_id, operation_id)
+            do update set operation_id = excluded.operation_id
             returning id
           )
           insert into workout_exercises (workout_session_id, exercise_id, position)
@@ -236,13 +238,15 @@ export function createProductionApp() {
           from created_session
           inner join exercises
             on exercises.slug = ${exerciseSlug} and exercises.archived = false
+          on conflict (workout_session_id, position)
+          do update set position = excluded.position
           returning workout_exercises.id
         `);
         return result.rows[0]?.id ? String(result.rows[0].id) : null;
       },
     },
     workoutSets: {
-      insert: async ({ userId, workoutExerciseId, loadKg, repetitions }) => {
+      insert: async ({ userId, workoutExerciseId, operationId, loadKg, repetitions }) => {
         await database.execute(sql`
           insert into profiles (auth_user_id)
           values (${userId})
@@ -253,6 +257,7 @@ export function createProductionApp() {
           insert into workout_sets (
             profile_id,
             workout_exercise_id,
+            operation_id,
             set_number,
             load_kg,
             repetitions
@@ -260,6 +265,7 @@ export function createProductionApp() {
           select
             profiles.id,
             ${workoutExerciseId}::uuid,
+            ${operationId},
             coalesce(max(workout_sets.set_number), 0) + 1,
             ${loadKg},
             ${repetitions}
@@ -273,6 +279,9 @@ export function createProductionApp() {
             on workout_sets.workout_exercise_id = ${workoutExerciseId}::uuid
           where profiles.auth_user_id = ${userId}
           group by profiles.id
+          on conflict (profile_id, operation_id)
+          do update set operation_id = excluded.operation_id
+          returning id
         `);
         return (result.rowCount ?? 0) > 0;
       },

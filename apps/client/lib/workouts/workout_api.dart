@@ -4,9 +4,13 @@ import 'package:http/http.dart' as http;
 import 'package:nicogym/auth/auth_api.dart';
 
 abstract interface class WorkoutRepository {
-  Future<String> startExercise(String exerciseSlug);
+  Future<String> startExercise(
+    String exerciseSlug, {
+    required String operationId,
+  });
   Future<void> logSet({
     required String workoutExerciseId,
+    required String operationId,
     required double loadKg,
     required int repetitions,
   });
@@ -25,9 +29,13 @@ class WorkoutApi implements WorkoutRepository {
   static const _timeout = Duration(seconds: 15);
 
   @override
-  Future<String> startExercise(String exerciseSlug) async {
+  Future<String> startExercise(
+    String exerciseSlug, {
+    required String operationId,
+  }) async {
     final payload = await _post('/api/workout-sessions', {
       'exerciseSlug': exerciseSlug,
+      'operationId': operationId,
     });
     final data = payload['data'];
     final workoutExerciseId = data is Map<String, dynamic>
@@ -42,11 +50,13 @@ class WorkoutApi implements WorkoutRepository {
   @override
   Future<void> logSet({
     required String workoutExerciseId,
+    required String operationId,
     required double loadKg,
     required int repetitions,
   }) async {
     await _post('/api/workout-sets', {
       'workoutExerciseId': workoutExerciseId,
+      'operationId': operationId,
       'loadKg': loadKg,
       'repetitions': repetitions,
     });
@@ -79,13 +89,19 @@ class WorkoutApi implements WorkoutRepository {
         // Use the safe error below.
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        if (payload?['error'] == 'unauthorized') await tokenStore.clear();
+        final errorCode = payload?['error'] as String?;
+        final unauthorized =
+            response.statusCode == 401 || errorCode == 'unauthorized';
+        if (unauthorized) await tokenStore.clear();
         throw WorkoutSyncException(switch (payload?['error']) {
           'unauthorized' => 'Phiên đăng nhập đã hết hạn.',
           'exercise_not_found' => 'Bài tập này chưa có trên máy chủ.',
+          'workout_exercise_not_found' =>
+            'Buổi tập đã thay đổi. Sẽ tạo lại khi thử tiếp.',
           'rate_limit_exceeded' => 'Bạn thao tác quá nhanh. Hãy thử lại sau.',
+          _ when unauthorized => 'Phiên đăng nhập đã hết hạn.',
           _ => 'Chưa thể đồng bộ buổi tập lúc này.',
-        });
+        }, code: errorCode);
       }
       if (payload == null) {
         throw const WorkoutSyncException(
@@ -104,6 +120,10 @@ class WorkoutApi implements WorkoutRepository {
 }
 
 class WorkoutSyncException implements Exception {
-  const WorkoutSyncException(this.message);
+  const WorkoutSyncException(this.message, {this.code});
   final String message;
+  final String? code;
+
+  @override
+  String toString() => 'WorkoutSyncException: $message';
 }

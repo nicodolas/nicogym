@@ -29,14 +29,26 @@ void main() {
       }),
     );
 
-    final id = await api.startExercise('leg-press');
-    await api.logSet(workoutExerciseId: id, loadKg: 40, repetitions: 10);
+    final id = await api.startExercise(
+      'leg-press',
+      operationId: 'session-operation-1',
+    );
+    await api.logSet(
+      workoutExerciseId: id,
+      operationId: 'set-operation-1',
+      loadKg: 40,
+      repetitions: 10,
+    );
 
     expect(requests, hasLength(2));
     expect(requests.first.headers['authorization'], 'Bearer session-token');
-    expect(jsonDecode(requests.first.body), {'exerciseSlug': 'leg-press'});
+    expect(jsonDecode(requests.first.body), {
+      'exerciseSlug': 'leg-press',
+      'operationId': 'session-operation-1',
+    });
     expect(jsonDecode(requests.last.body), {
       'workoutExerciseId': 'workout-exercise-1',
+      'operationId': 'set-operation-1',
       'loadKg': 40.0,
       'repetitions': 10,
     });
@@ -50,7 +62,7 @@ void main() {
     );
 
     await expectLater(
-      api.startExercise('leg-press'),
+      api.startExercise('leg-press', operationId: 'session-operation-1'),
       throwsA(
         isA<WorkoutSyncException>().having(
           (error) => error.message,
@@ -66,13 +78,11 @@ void main() {
     final api = WorkoutApi(
       baseUrl: Uri.parse('https://api.example.test'),
       tokenStore: tokenStore,
-      client: MockClient(
-        (_) async => http.Response(jsonEncode({'error': 'unauthorized'}), 401),
-      ),
+      client: MockClient((_) async => http.Response('', 401)),
     );
 
     await expectLater(
-      api.startExercise('leg-press'),
+      api.startExercise('leg-press', operationId: 'session-operation-1'),
       throwsA(isA<WorkoutSyncException>()),
     );
 
@@ -87,12 +97,66 @@ void main() {
     );
 
     await expectLater(
-      api.startExercise('leg-press'),
+      api.startExercise('leg-press', operationId: 'session-operation-1'),
       throwsA(
         isA<WorkoutSyncException>().having(
           (error) => error.message,
           'message',
           'Không kết nối được máy chủ.',
+        ),
+      ),
+    );
+  });
+
+  for (final testCase in [
+    (
+      status: 404,
+      body: {'error': 'exercise_not_found'},
+      message: 'Bài tập này chưa có trên máy chủ.',
+    ),
+    (
+      status: 429,
+      body: {'error': 'rate_limit_exceeded'},
+      message: 'Bạn thao tác quá nhanh. Hãy thử lại sau.',
+    ),
+  ]) {
+    test('maps ${testCase.body['error']} to a safe message', () async {
+      final api = WorkoutApi(
+        baseUrl: Uri.parse('https://api.example.test'),
+        tokenStore: _TokenStore('session-token'),
+        client: MockClient(
+          (_) async =>
+              http.Response(jsonEncode(testCase.body), testCase.status),
+        ),
+      );
+
+      await expectLater(
+        api.startExercise('leg-press', operationId: 'session-operation-1'),
+        throwsA(
+          isA<WorkoutSyncException>().having(
+            (error) => error.message,
+            'message',
+            testCase.message,
+          ),
+        ),
+      );
+    });
+  }
+
+  test('rejects a successful response with a malformed body', () async {
+    final api = WorkoutApi(
+      baseUrl: Uri.parse('https://api.example.test'),
+      tokenStore: _TokenStore('session-token'),
+      client: MockClient((_) async => http.Response('[]', 201)),
+    );
+
+    await expectLater(
+      api.startExercise('leg-press', operationId: 'session-operation-1'),
+      throwsA(
+        isA<WorkoutSyncException>().having(
+          (error) => error.message,
+          'message',
+          'Máy chủ trả về dữ liệu không hợp lệ.',
         ),
       ),
     );
