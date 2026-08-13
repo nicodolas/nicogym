@@ -247,6 +247,12 @@ void main() {
     await tester.tap(find.text('Tiến độ'));
     await tester.pumpAndSettle();
     expect(repository.loads, 1);
+
+    await tester.tap(find.text('Thư viện'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tiến độ'));
+    await tester.pumpAndSettle();
+    expect(repository.loads, 2);
   });
 
   testWidgets('explains how to begin when progress is empty', (tester) async {

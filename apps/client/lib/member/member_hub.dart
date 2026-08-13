@@ -31,6 +31,7 @@ class MemberHubScreen extends StatefulWidget {
 class _MemberHubScreenState extends State<MemberHubScreen> {
   late int _tab = widget.initialTab;
   late bool _progressOpened = widget.initialTab == 2;
+  int _progressRefresh = 0;
   bool _isAdmin = false;
 
   @override
@@ -71,7 +72,10 @@ class _MemberHubScreenState extends State<MemberHubScreen> {
         ),
         _SchedulePlanner(repository: widget.plannerRepository),
         if (_progressOpened)
-          _ProgressView(repository: widget.progressRepository)
+          _ProgressView(
+            repository: widget.progressRepository,
+            refresh: _progressRefresh,
+          )
         else
           const SizedBox.shrink(),
         if (_isAdmin && widget.catalogRepository != null)
@@ -82,7 +86,10 @@ class _MemberHubScreenState extends State<MemberHubScreen> {
       selectedIndex: _tab,
       onDestinationSelected: (value) => setState(() {
         _tab = value;
-        if (value == 2) _progressOpened = true;
+        if (value == 2) {
+          _progressOpened = true;
+          _progressRefresh += 1;
+        }
       }),
       destinations: [
         const NavigationDestination(
@@ -108,9 +115,10 @@ class _MemberHubScreenState extends State<MemberHubScreen> {
 }
 
 class _ProgressView extends StatefulWidget {
-  const _ProgressView({required this.repository});
+  const _ProgressView({required this.repository, required this.refresh});
 
   final ProgressRepository? repository;
+  final int refresh;
 
   @override
   State<_ProgressView> createState() => _ProgressViewState();
@@ -124,6 +132,14 @@ class _ProgressViewState extends State<_ProgressView> {
       Future.value(
         const ProgressSummary(sessions: 0, sets: 0, volumeKg: 0, latest: []),
       );
+
+  @override
+  void didUpdateWidget(covariant _ProgressView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refresh != oldWidget.refresh) {
+      _retry();
+    }
+  }
 
   Future<void> _retry() async {
     final next = _load();
