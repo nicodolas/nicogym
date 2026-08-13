@@ -30,6 +30,7 @@ class MemberHubScreen extends StatefulWidget {
 
 class _MemberHubScreenState extends State<MemberHubScreen> {
   late int _tab = widget.initialTab;
+  late bool _progressOpened = widget.initialTab == 2;
   bool _isAdmin = false;
 
   @override
@@ -69,14 +70,20 @@ class _MemberHubScreenState extends State<MemberHubScreen> {
           onOpen: widget.onOpenExercise,
         ),
         _SchedulePlanner(repository: widget.plannerRepository),
-        _ProgressView(repository: widget.progressRepository),
+        if (_progressOpened)
+          _ProgressView(repository: widget.progressRepository)
+        else
+          const SizedBox.shrink(),
         if (_isAdmin && widget.catalogRepository != null)
           CatalogAdminScreen(repository: widget.catalogRepository!),
       ],
     ),
     bottomNavigationBar: NavigationBar(
       selectedIndex: _tab,
-      onDestinationSelected: (value) => setState(() => _tab = value),
+      onDestinationSelected: (value) => setState(() {
+        _tab = value;
+        if (value == 2) _progressOpened = true;
+      }),
       destinations: [
         const NavigationDestination(
           icon: Icon(Icons.grid_view_rounded),
@@ -120,8 +127,14 @@ class _ProgressViewState extends State<_ProgressView> {
 
   Future<void> _retry() async {
     final next = _load();
-    setState(() => _summary = next);
-    await next;
+    setState(() {
+      _summary = next;
+    });
+    try {
+      await next;
+    } catch (_) {
+      // FutureBuilder renders the error; callbacks must not leak it as unhandled.
+    }
   }
 
   @override
@@ -174,7 +187,7 @@ class _ProgressViewState extends State<_ProgressView> {
                 _ProgressMetric(label: 'TỔNG HIỆP', value: '${summary.sets}'),
                 _ProgressMetric(
                   label: 'KHỐI LƯỢNG',
-                  value: '${summary.volumeKg.round()} kg',
+                  value: '${_formatLoad(summary.volumeKg)} kg',
                 ),
               ],
             ),
@@ -232,8 +245,7 @@ class _ProgressMetric extends StatelessWidget {
   );
 }
 
-String _formatLoad(double value) =>
-    value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
+String _formatLoad(double value) => value.toString();
 
 String _progressDate(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';

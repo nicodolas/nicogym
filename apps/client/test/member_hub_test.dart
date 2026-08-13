@@ -218,9 +218,28 @@ void main() {
     expect(find.text('TIẾN ĐỘ'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
     expect(find.text('6'), findsOneWidget);
-    expect(find.text('2400 kg'), findsOneWidget);
+    expect(find.text('2400.4 kg'), findsOneWidget);
     expect(find.text('Leg press'), findsOneWidget);
-    expect(find.text('40 kg × 10'), findsOneWidget);
+    expect(find.text('40.125 kg × 10'), findsOneWidget);
+  });
+
+  testWidgets('loads progress only after its tab is opened', (tester) async {
+    final repository = _CountingProgressRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemberHubScreen(
+          exerciseLoader: () async => const [chestExercise],
+          onOpenExercise: (_) {},
+          progressRepository: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.loads, 0);
+    await tester.tap(find.text('Tiến độ'));
+    await tester.pumpAndSettle();
+    expect(repository.loads, 1);
   });
 
   testWidgets('explains how to begin when progress is empty', (tester) async {
@@ -257,6 +276,9 @@ void main() {
 
     expect(find.text('Phiên đăng nhập đã hết hạn.'), findsOneWidget);
     expect(find.text('Thử lại'), findsOneWidget);
+    await tester.tap(find.text('Thử lại'));
+    await tester.pumpAndSettle();
+    expect(find.text('Phiên đăng nhập đã hết hạn.'), findsOneWidget);
   });
 }
 
@@ -265,17 +287,27 @@ class _MemoryProgressRepository implements ProgressRepository {
   Future<ProgressSummary> load() async => ProgressSummary(
     sessions: 2,
     sets: 6,
-    volumeKg: 2400,
+    volumeKg: 2400.4,
     latest: [
       ProgressEntry(
         exerciseSlug: 'leg-press',
         exerciseName: 'Leg press',
-        loadKg: 40,
+        loadKg: 40.125,
         repetitions: 10,
         completedAt: DateTime(2026, 8, 13),
       ),
     ],
   );
+}
+
+class _CountingProgressRepository implements ProgressRepository {
+  int loads = 0;
+
+  @override
+  Future<ProgressSummary> load() async {
+    loads += 1;
+    return const ProgressSummary(sessions: 0, sets: 0, volumeKg: 0, latest: []);
+  }
 }
 
 class _EmptyProgressRepository implements ProgressRepository {
