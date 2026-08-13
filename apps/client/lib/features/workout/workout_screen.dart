@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nicogym/app/app_theme.dart';
@@ -30,6 +32,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   Future<String?>? _workoutExercise;
   String? _syncMessage;
   bool _logging = false;
+  Timer? _restTimer;
+  int _restSeconds = 0;
+  static const _defaultRestSeconds = 90;
   late final String _sessionOperationId = _newOperationId('session', 0);
   var _operationSequence = 0;
 
@@ -53,6 +58,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   @override
   void dispose() {
+    _restTimer?.cancel();
     _loadController.dispose();
     _repsController.dispose();
     _videoController?.close();
@@ -113,6 +119,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       );
       _logging = true;
     });
+    _startRestTimer();
     try {
       final workoutExerciseId = await _ensureWorkoutExercise();
       if (workoutExerciseId == null) return;
@@ -141,6 +148,34 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     } finally {
       if (mounted) setState(() => _logging = false);
     }
+  }
+
+  void _startRestTimer() {
+    _restTimer?.cancel();
+    setState(() => _restSeconds = _defaultRestSeconds);
+    _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return timer.cancel();
+      if (_restSeconds <= 1) {
+        timer.cancel();
+        setState(() => _restSeconds = 0);
+        HapticFeedback.mediumImpact();
+      } else {
+        setState(() => _restSeconds -= 1);
+      }
+    });
+  }
+
+  void _addRestTime() => setState(() => _restSeconds += 30);
+
+  void _skipRest() {
+    _restTimer?.cancel();
+    setState(() => _restSeconds = 0);
+  }
+
+  String get _restLabel {
+    final minutes = _restSeconds ~/ 60;
+    final seconds = (_restSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   String _newOperationId(String kind, int sequence) =>
@@ -303,6 +338,48 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   ),
                 ],
                 const SizedBox(height: 16),
+                if (_restSeconds > 0) ...[
+                  Card(
+                    key: const Key('rest-timer'),
+                    color: NicoGymColors.ink,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.timer_outlined,
+                            color: NicoGymColors.lime,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'NGHỈ  $_restLabel',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(color: Colors.white),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _addRestTime,
+                            child: const Text('+30s'),
+                          ),
+                          TextButton(
+                            onPressed: _skipRest,
+                            child: const Text('Bỏ qua'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (_sets.isNotEmpty) ...[
+                  Text(
+                    'Hiệp trước: ${_sets.last}',
+                    key: const Key('previous-set'),
+                    style: const TextStyle(color: NicoGymColors.muted),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 Text(
                   'HIỆP ${_sets.length + 1}',
                   style: Theme.of(context).textTheme.labelLarge,

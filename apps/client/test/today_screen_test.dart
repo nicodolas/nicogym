@@ -107,6 +107,15 @@ void main() {
     expect(find.text('40 kg × 10'), findsOneWidget);
     expect(find.text('HIỆP 2'), findsOneWidget);
     expect(find.text('Đã đồng bộ hiệp 1'), findsOneWidget);
+    expect(find.byKey(const Key('previous-set')), findsOneWidget);
+    expect(find.byKey(const Key('rest-timer')), findsOneWidget);
+    expect(find.textContaining('1:30'), findsOneWidget);
+    await tester.tap(find.text('+30s'));
+    await tester.pump();
+    expect(find.textContaining('2:00'), findsOneWidget);
+    await tester.tap(find.text('Bỏ qua'));
+    await tester.pump();
+    expect(find.byKey(const Key('rest-timer')), findsNothing);
     expect(workoutRepository.logged, [(40.0, 10)]);
   });
 
@@ -164,6 +173,11 @@ void main() {
 
     await tester.tap(find.text('Ghi hiệp'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Ghi hiệp'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.tap(find.text('Ghi hiệp'));
     await tester.pumpAndSettle();
 
@@ -200,6 +214,11 @@ void main() {
 
     await tester.tap(find.text('Ghi hiệp'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Ghi hiệp'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.tap(find.text('Ghi hiệp'));
     await tester.pumpAndSettle();
 
