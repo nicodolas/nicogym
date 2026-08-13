@@ -1,0 +1,1 @@
+ALTER TABLE "workout_exercises" ADD COLUMN "next_set_number" integer DEFAULT 1 NOT NULL;

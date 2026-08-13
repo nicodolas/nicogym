@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nicogym/app.dart';
 import 'package:nicogym/workouts/exercise.dart';
+import 'package:nicogym/workouts/workout_api.dart';
 
 void main() {
   const testExercises = [
@@ -77,7 +78,13 @@ void main() {
 
   testWidgets('opens workout mode and logs a set quickly', (tester) async {
     useMobileViewport(tester);
-    await tester.pumpWidget(NicoGymApp(exerciseLoader: loadTestExercises));
+    final workoutRepository = _MemoryWorkoutRepository();
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        workoutRepository: workoutRepository,
+      ),
+    );
     await tester.tap(find.text('Bắt đầu buổi tập'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
@@ -93,10 +100,112 @@ void main() {
     await tester.enterText(find.byKey(const Key('load-input')), '40');
     await tester.enterText(find.byKey(const Key('reps-input')), '10');
     await tester.tap(find.text('Ghi hiệp'));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -250));
+    await tester.pumpAndSettle();
 
     expect(find.text('40 kg × 10'), findsOneWidget);
     expect(find.text('HIỆP 2'), findsOneWidget);
+    expect(find.text('Đã đồng bộ hiệp 1'), findsOneWidget);
+    expect(workoutRepository.logged, [(40.0, 10)]);
+  });
+
+  testWidgets('keeps a set visible when synchronization fails', (tester) async {
+    useMobileViewport(tester);
+    final workoutRepository = _FailingWorkoutRepository();
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        workoutRepository: workoutRepository,
+      ),
+    );
+    await tester.tap(find.text('Bắt đầu buổi tập'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('load-input')),
+      400,
+      scrollable: find.byType(Scrollable).last,
+    );
+
+    await tester.enterText(find.byKey(const Key('load-input')), '40');
+    await tester.enterText(find.byKey(const Key('reps-input')), '10');
+    await tester.ensureVisible(find.text('Ghi hiệp'));
+    await tester.tap(find.text('Ghi hiệp'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -250));
+    await tester.pumpAndSettle();
+
+    expect(find.text('40 kg × 10'), findsOneWidget);
+    expect(find.text('HIỆP 2'), findsOneWidget);
+    expect(
+      find.text('Mạng đang gián đoạn, hiệp vẫn được giữ.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('retries pending sets after synchronization recovers', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    final workoutRepository = _RecoveringWorkoutRepository();
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        workoutRepository: workoutRepository,
+      ),
+    );
+    await tester.tap(find.text('Bắt đầu buổi tập'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('load-input')),
+      400,
+      scrollable: find.byType(Scrollable).last,
+    );
+
+    await tester.tap(find.text('Ghi hiệp'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ghi hiệp'));
+    await tester.pumpAndSettle();
+
+    expect(workoutRepository.logged, [(40.0, 10), (40.0, 10)]);
+    expect(
+      workoutRepository.attemptOperationIds[0],
+      workoutRepository.attemptOperationIds[1],
+    );
+    expect(
+      workoutRepository.attemptOperationIds[1],
+      isNot(workoutRepository.attemptOperationIds[2]),
+    );
+    expect(find.text('Đã đồng bộ hiệp 2'), findsOneWidget);
+  });
+
+  testWidgets('retries session creation without losing pending sets', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    final workoutRepository = _RecoveringSessionRepository();
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        workoutRepository: workoutRepository,
+      ),
+    );
+    await tester.tap(find.text('Bắt đầu buổi tập'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('load-input')),
+      400,
+      scrollable: find.byType(Scrollable).last,
+    );
+
+    await tester.tap(find.text('Ghi hiệp'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ghi hiệp'));
+    await tester.pumpAndSettle();
+
+    expect(workoutRepository.startAttempts, 2);
+    expect(workoutRepository.startOperationIds.toSet(), hasLength(1));
+    expect(workoutRepository.logged, [(40.0, 10), (40.0, 10)]);
   });
 
   testWidgets('opens the Romanian deadlift guide from the workout list', (
@@ -106,7 +215,13 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(NicoGymApp(exerciseLoader: loadTestExercises));
+    final workoutRepository = _MemoryWorkoutRepository();
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        workoutRepository: workoutRepository,
+      ),
+    );
     await tester.pump(const Duration(seconds: 1));
 
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
@@ -124,6 +239,15 @@ void main() {
     );
     expect(find.text('Xem video mẫu'), findsOneWidget);
     expect(find.text('Nguồn: ACE Exercise Library'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('load-input')),
+      350,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.ensureVisible(find.text('Ghi hiệp'));
+    await tester.tap(find.text('Ghi hiệp'));
+    await tester.pumpAndSettle();
+    expect(workoutRepository.startedSlugs, contains('romanian-deadlift'));
   });
 
   testWidgets('can go back or retry when the exercise library fails', (
@@ -165,4 +289,98 @@ void main() {
     expect(find.text('Giữ lịch chân'), findsOneWidget);
     expect(find.text('Xác nhận đổi'), findsOneWidget);
   });
+}
+
+class _MemoryWorkoutRepository implements WorkoutRepository {
+  final List<(double, int)> logged = [];
+  final List<String> startedSlugs = [];
+
+  @override
+  Future<String> startExercise(
+    String exerciseSlug, {
+    required String operationId,
+  }) async {
+    startedSlugs.add(exerciseSlug);
+    return 'workout-exercise-1';
+  }
+
+  @override
+  Future<void> logSet({
+    required String workoutExerciseId,
+    required String operationId,
+    required double loadKg,
+    required int repetitions,
+  }) async => logged.add((loadKg, repetitions));
+}
+
+class _FailingWorkoutRepository implements WorkoutRepository {
+  @override
+  Future<String> startExercise(
+    String exerciseSlug, {
+    required String operationId,
+  }) async => 'workout-exercise-1';
+
+  @override
+  Future<void> logSet({
+    required String workoutExerciseId,
+    required String operationId,
+    required double loadKg,
+    required int repetitions,
+  }) async {
+    throw const WorkoutSyncException('Mạng đang gián đoạn, hiệp vẫn được giữ.');
+  }
+}
+
+class _RecoveringWorkoutRepository implements WorkoutRepository {
+  final List<(double, int)> logged = [];
+  final List<String> attemptOperationIds = [];
+  var attempts = 0;
+
+  @override
+  Future<String> startExercise(
+    String exerciseSlug, {
+    required String operationId,
+  }) async => 'workout-exercise-1';
+
+  @override
+  Future<void> logSet({
+    required String workoutExerciseId,
+    required String operationId,
+    required double loadKg,
+    required int repetitions,
+  }) async {
+    attempts += 1;
+    attemptOperationIds.add(operationId);
+    if (attempts == 1) {
+      throw const WorkoutSyncException('Mạng đang gián đoạn.');
+    }
+    logged.add((loadKg, repetitions));
+  }
+}
+
+class _RecoveringSessionRepository implements WorkoutRepository {
+  final List<(double, int)> logged = [];
+  final List<String> startOperationIds = [];
+  var startAttempts = 0;
+
+  @override
+  Future<String> startExercise(
+    String exerciseSlug, {
+    required String operationId,
+  }) async {
+    startAttempts += 1;
+    startOperationIds.add(operationId);
+    if (startAttempts == 1) {
+      throw const WorkoutSyncException('Mạng đang gián đoạn.');
+    }
+    return 'workout-exercise-1';
+  }
+
+  @override
+  Future<void> logSet({
+    required String workoutExerciseId,
+    required String operationId,
+    required double loadKg,
+    required int repetitions,
+  }) async => logged.add((loadKg, repetitions));
 }

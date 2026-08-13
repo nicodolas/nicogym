@@ -212,8 +212,42 @@ export function createProductionApp() {
         return saved;
       },
     },
+    workoutSessions: {
+      start: async ({ userId, exerciseSlug, operationId }) => {
+        await database.execute(sql`
+          insert into profiles (auth_user_id)
+          values (${userId})
+          on conflict (auth_user_id) do nothing
+        `);
+        const result = await database.execute(sql`
+          with created_session as (
+            insert into workout_sessions (profile_id, operation_id)
+            select profiles.id, ${operationId}
+            from profiles
+            where profiles.auth_user_id = ${userId}
+              and exists (
+                select 1 from exercises
+                where exercises.slug = ${exerciseSlug} and exercises.archived = false
+              )
+            on conflict (profile_id, operation_id)
+            do update set operation_id = excluded.operation_id
+            returning id
+          )
+          insert into workout_exercises (workout_session_id, exercise_id, position)
+          select created_session.id, exercises.id, 0
+          from created_session
+          inner join exercises
+            on exercises.slug = ${exerciseSlug} and exercises.archived = false
+          on conflict (workout_session_id, position)
+          do update set position = excluded.position
+          where workout_exercises.exercise_id = excluded.exercise_id
+          returning workout_exercises.id
+        `);
+        return result.rows[0]?.id ? String(result.rows[0].id) : null;
+      },
+    },
     workoutSets: {
-      insert: async ({ userId, workoutExerciseId, loadKg, repetitions }) => {
+      insert: async ({ userId, workoutExerciseId, operationId, loadKg, repetitions }) => {
         await database.execute(sql`
           insert into profiles (auth_user_id)
           values (${userId})
@@ -221,29 +255,47 @@ export function createProductionApp() {
         `);
 
         const result = await database.execute(sql`
+          with target as (
+            select profiles.id as profile_id, workout_exercises.id as workout_exercise_id
+            from profiles
+            inner join workout_sessions
+              on workout_sessions.profile_id = profiles.id
+            inner join workout_exercises
+              on workout_exercises.workout_session_id = workout_sessions.id
+              and workout_exercises.id = ${workoutExerciseId}::uuid
+            where profiles.auth_user_id = ${userId}
+          ), allocated as (
+            update workout_exercises
+            set next_set_number = workout_exercises.next_set_number + 1
+            from target
+            where workout_exercises.id = target.workout_exercise_id
+            returning
+              target.profile_id,
+              workout_exercises.id as workout_exercise_id,
+              workout_exercises.next_set_number - 1 as set_number
+          )
           insert into workout_sets (
             profile_id,
             workout_exercise_id,
+            operation_id,
             set_number,
             load_kg,
             repetitions
           )
           select
-            profiles.id,
-            ${workoutExerciseId}::uuid,
-            coalesce(max(workout_sets.set_number), 0) + 1,
+            allocated.profile_id,
+            allocated.workout_exercise_id,
+            ${operationId},
+            allocated.set_number,
             ${loadKg},
             ${repetitions}
-          from profiles
-          inner join workout_sessions
-            on workout_sessions.profile_id = profiles.id
-          inner join workout_exercises
-            on workout_exercises.workout_session_id = workout_sessions.id
-            and workout_exercises.id = ${workoutExerciseId}::uuid
-          left join workout_sets
-            on workout_sets.workout_exercise_id = ${workoutExerciseId}::uuid
-          where profiles.auth_user_id = ${userId}
-          group by profiles.id
+          from allocated
+          on conflict (profile_id, operation_id)
+          do update set operation_id = excluded.operation_id
+          where workout_sets.workout_exercise_id = excluded.workout_exercise_id
+            and workout_sets.load_kg = excluded.load_kg
+            and workout_sets.repetitions = excluded.repetitions
+          returning workout_sets.id
         `);
         return (result.rowCount ?? 0) > 0;
       },

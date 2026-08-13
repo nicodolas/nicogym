@@ -4,8 +4,9 @@ import 'package:nicogym/auth/auth_api.dart';
 import 'package:nicogym/features/today/today_header.dart';
 import 'package:nicogym/features/workout/workout_screen.dart';
 import 'package:nicogym/workouts/exercise.dart';
+import 'package:nicogym/workouts/workout_api.dart';
 
-class NicoGymApp extends StatelessWidget {
+class NicoGymApp extends StatefulWidget {
   const NicoGymApp({
     super.key,
     this.showRecoverySuggestion = false,
@@ -20,6 +21,7 @@ class NicoGymApp extends StatelessWidget {
     ),
     this.exerciseLoader = ExerciseLibrary.load,
     this.memberTokenStore,
+    this.workoutRepository,
   });
 
   final bool showRecoverySuggestion;
@@ -28,6 +30,56 @@ class NicoGymApp extends StatelessWidget {
   final String baseAppVersion;
   final Future<List<Exercise>> Function() exerciseLoader;
   final TokenStore? memberTokenStore;
+  final WorkoutRepository? workoutRepository;
+
+  @override
+  State<NicoGymApp> createState() => _NicoGymAppState();
+}
+
+class _NicoGymAppState extends State<NicoGymApp> {
+  late TokenStore _tokenStore;
+  late WorkoutRepository _workoutRepository;
+  WorkoutApi? _ownedWorkoutApi;
+  final List<WorkoutApi> _retiredWorkoutApis = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _configureDependencies();
+  }
+
+  @override
+  void didUpdateWidget(covariant NicoGymApp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.memberTokenStore != widget.memberTokenStore ||
+        oldWidget.workoutRepository != widget.workoutRepository ||
+        oldWidget.apiBaseUrl != widget.apiBaseUrl) {
+      if (_ownedWorkoutApi case final api?) {
+        _retiredWorkoutApis.add(api);
+      }
+      _configureDependencies();
+    }
+  }
+
+  void _configureDependencies() {
+    _tokenStore = widget.memberTokenStore ?? SecureTokenStore();
+    _ownedWorkoutApi = widget.workoutRepository == null
+        ? WorkoutApi(
+            baseUrl: Uri.parse(widget.apiBaseUrl),
+            tokenStore: _tokenStore,
+          )
+        : null;
+    _workoutRepository = widget.workoutRepository ?? _ownedWorkoutApi!;
+  }
+
+  @override
+  void dispose() {
+    _ownedWorkoutApi?.close();
+    for (final api in _retiredWorkoutApis) {
+      api.close();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,12 +88,13 @@ class NicoGymApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: buildNicoGymTheme(),
       home: TodayScreen(
-        showRecoverySuggestion: showRecoverySuggestion,
-        apkDownloadUrl: apkDownloadUrl,
-        apiBaseUrl: apiBaseUrl,
-        baseAppVersion: baseAppVersion,
-        exerciseLoader: exerciseLoader,
-        memberTokenStore: memberTokenStore,
+        showRecoverySuggestion: widget.showRecoverySuggestion,
+        apkDownloadUrl: widget.apkDownloadUrl,
+        apiBaseUrl: widget.apiBaseUrl,
+        baseAppVersion: widget.baseAppVersion,
+        exerciseLoader: widget.exerciseLoader,
+        memberTokenStore: _tokenStore,
+        workoutRepository: _workoutRepository,
       ),
     );
   }
@@ -56,6 +109,7 @@ class TodayScreen extends StatelessWidget {
     required this.baseAppVersion,
     required this.exerciseLoader,
     required this.memberTokenStore,
+    required this.workoutRepository,
   });
 
   final bool showRecoverySuggestion;
@@ -64,6 +118,7 @@ class TodayScreen extends StatelessWidget {
   final String baseAppVersion;
   final Future<List<Exercise>> Function() exerciseLoader;
   final TokenStore? memberTokenStore;
+  final WorkoutRepository workoutRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -85,10 +140,12 @@ class TodayScreen extends StatelessWidget {
                       sliver: SliverList.list(
                         children: [
                           TodayHeader(
+                            key: ObjectKey(memberTokenStore),
                             apkDownloadUrl: apkDownloadUrl,
                             apiBaseUrl: apiBaseUrl,
                             exerciseLoader: exerciseLoader,
                             tokenStore: memberTokenStore,
+                            workoutRepository: workoutRepository,
                           ),
                           const SizedBox(height: 28),
                           _TodayHero(compact: constraints.maxWidth < 760),
@@ -101,7 +158,10 @@ class TodayScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 20),
                           ],
-                          _WorkoutOverview(loader: exerciseLoader),
+                          _WorkoutOverview(
+                            loader: exerciseLoader,
+                            workoutRepository: workoutRepository,
+                          ),
                           const SizedBox(height: 28),
                           Center(
                             child: Text(
@@ -137,7 +197,10 @@ class TodayScreen extends StatelessWidget {
               ),
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => _WorkoutLoaderScreen(loader: exerciseLoader),
+                  builder: (_) => _WorkoutLoaderScreen(
+                    loader: exerciseLoader,
+                    workoutRepository: workoutRepository,
+                  ),
                 ),
               ),
               icon: const Icon(Icons.play_arrow_rounded),
@@ -188,9 +251,13 @@ class TodayScreen extends StatelessWidget {
 }
 
 class _WorkoutLoaderScreen extends StatefulWidget {
-  const _WorkoutLoaderScreen({required this.loader});
+  const _WorkoutLoaderScreen({
+    required this.loader,
+    required this.workoutRepository,
+  });
 
   final Future<List<Exercise>> Function() loader;
+  final WorkoutRepository workoutRepository;
 
   @override
   State<_WorkoutLoaderScreen> createState() => _WorkoutLoaderScreenState();
@@ -235,7 +302,10 @@ class _WorkoutLoaderScreenState extends State<_WorkoutLoaderScreen> {
           body: const Center(child: CircularProgressIndicator()),
         );
       }
-      return WorkoutScreen(exercise: snapshot.data!.first);
+      return WorkoutScreen(
+        exercise: snapshot.data!.first,
+        workoutRepository: widget.workoutRepository,
+      );
     },
   );
 }
@@ -420,9 +490,13 @@ class _SuggestionNotice extends StatelessWidget {
 }
 
 class _WorkoutOverview extends StatefulWidget {
-  const _WorkoutOverview({required this.loader});
+  const _WorkoutOverview({
+    required this.loader,
+    required this.workoutRepository,
+  });
 
   final Future<List<Exercise>> Function() loader;
+  final WorkoutRepository workoutRepository;
 
   @override
   State<_WorkoutOverview> createState() => _WorkoutOverviewState();
@@ -468,7 +542,11 @@ class _WorkoutOverviewState extends State<_WorkoutOverview> {
             return Column(
               children: [
                 for (final entry in snapshot.data!.indexed)
-                  _ExerciseCard(index: entry.$1, exercise: entry.$2),
+                  _ExerciseCard(
+                    index: entry.$1,
+                    exercise: entry.$2,
+                    workoutRepository: widget.workoutRepository,
+                  ),
               ],
             );
           },
@@ -499,10 +577,15 @@ class _LibraryMessage extends StatelessWidget {
 }
 
 class _ExerciseCard extends StatelessWidget {
-  const _ExerciseCard({required this.index, required this.exercise});
+  const _ExerciseCard({
+    required this.index,
+    required this.exercise,
+    required this.workoutRepository,
+  });
 
   final int index;
   final Exercise exercise;
+  final WorkoutRepository workoutRepository;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -518,7 +601,10 @@ class _ExerciseCard extends StatelessWidget {
         mouseCursor: SystemMouseCursors.click,
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => WorkoutScreen(exercise: exercise),
+            builder: (_) => WorkoutScreen(
+              exercise: exercise,
+              workoutRepository: workoutRepository,
+            ),
           ),
         ),
         child: Padding(

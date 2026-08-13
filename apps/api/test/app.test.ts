@@ -67,10 +67,120 @@ describe("API", () => {
     const response = await createApp().request("/api/workout-sets", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ workoutExerciseId, loadKg: 40, repetitions: 10 }),
+      body: JSON.stringify({ workoutExerciseId, operationId: "set-operation-1", loadKg: 40, repetitions: 10 }),
     });
 
     expect(response.status).toBe(401);
+  });
+
+  it("starts an owned workout exercise from a catalog slug", async () => {
+    const started: unknown[] = [];
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      workoutSessions: {
+        start: async (value) => (started.push(value), workoutExerciseId),
+      },
+    }).request("/api/workout-sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ exerciseSlug: "leg-press", operationId: "session-operation-1" }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(started).toEqual([
+      { userId: "user-1", exerciseSlug: "leg-press", operationId: "session-operation-1" },
+    ]);
+    expect(await response.json()).toEqual({ data: { workoutExerciseId } });
+  });
+
+  it("forwards a stable operation id when session creation is retried", async () => {
+    const operationIds: string[] = [];
+    const app = createApp({
+      currentUser: async () => authenticatedUser,
+      workoutSessions: {
+        start: async (value) => (operationIds.push(value.operationId), workoutExerciseId),
+      },
+    });
+    const request = () =>
+      app.request("/api/workout-sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ exerciseSlug: "leg-press", operationId: "session-operation-1" }),
+      });
+
+    expect((await request()).status).toBe(201);
+    expect((await request()).status).toBe(201);
+    expect(operationIds).toEqual(["session-operation-1", "session-operation-1"]);
+  });
+
+  it("does not start a workout for an unknown exercise", async () => {
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      workoutSessions: { start: async () => null },
+    }).request("/api/workout-sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ exerciseSlug: "missing-exercise", operationId: "session-operation-1" }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "exercise_not_found" });
+  });
+
+  it("requires authentication to start a workout session", async () => {
+    const response = await createApp().request("/api/workout-sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ exerciseSlug: "leg-press", operationId: "session-operation-1" }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects malformed workout-session JSON", async () => {
+    const response = await createApp({ currentUser: async () => authenticatedUser }).request(
+      "/api/workout-sessions",
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{bad-json" },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_workout_session" });
+  });
+
+  it("rate limits workout-session creation", async () => {
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      workoutWriteAllowed: () => false,
+    }).request("/api/workout-sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ exerciseSlug: "leg-press", operationId: "session-operation-1" }),
+    });
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
+  });
+
+  it("requires JSON content for workout-session creation", async () => {
+    const response = await createApp({ currentUser: async () => authenticatedUser }).request(
+      "/api/workout-sessions",
+      { method: "POST", headers: { "content-type": "text/plain" }, body: "not-json" },
+    );
+
+    expect(response.status).toBe(415);
+  });
+
+  it("rejects oversized workout-session requests", async () => {
+    const response = await createApp({ currentUser: async () => authenticatedUser }).request(
+      "/api/workout-sessions",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ padding: "x".repeat(33 * 1024) }),
+      },
+    );
+
+    expect(response.status).toBe(413);
   });
 
   it("requires authentication to read the planner", async () => {
@@ -295,12 +405,18 @@ describe("API", () => {
     }).request("/api/workout-sets", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ workoutExerciseId, loadKg: 40, repetitions: 10 }),
+      body: JSON.stringify({ workoutExerciseId, operationId: "set-operation-1", loadKg: 40, repetitions: 10 }),
     });
 
     expect(response.status).toBe(201);
     expect(stored).toEqual([
-      { userId: "user-1", workoutExerciseId, loadKg: 40, repetitions: 10 },
+      {
+        userId: "user-1",
+        workoutExerciseId,
+        operationId: "set-operation-1",
+        loadKg: 40,
+        repetitions: 10,
+      },
     ]);
   });
 
@@ -311,7 +427,7 @@ describe("API", () => {
     }).request("/api/workout-sets", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ workoutExerciseId, loadKg: 40, repetitions: 10 }),
+      body: JSON.stringify({ workoutExerciseId, operationId: "set-operation-1", loadKg: 40, repetitions: 10 }),
     });
 
     expect(response.status).toBe(404);
@@ -339,7 +455,7 @@ describe("API", () => {
         "content-type": "application/json",
         origin: "https://evil.example",
       },
-      body: JSON.stringify({ workoutExerciseId, loadKg: 40, repetitions: 10 }),
+      body: JSON.stringify({ workoutExerciseId, operationId: "set-operation-1", loadKg: 40, repetitions: 10 }),
     });
 
     expect(response.status).toBe(403);
@@ -379,7 +495,12 @@ describe("API", () => {
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ workoutExerciseId: "not-a-uuid", loadKg: 40, repetitions: 10 }),
+        body: JSON.stringify({
+          workoutExerciseId: "not-a-uuid",
+          operationId: "set-operation-1",
+          loadKg: 40,
+          repetitions: 10,
+        }),
       },
     );
 
@@ -393,7 +514,7 @@ describe("API", () => {
     }).request("/api/workout-sets", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ workoutExerciseId, loadKg: 40, repetitions: 10 }),
+      body: JSON.stringify({ workoutExerciseId, operationId: "set-operation-1", loadKg: 40, repetitions: 10 }),
     });
 
     expect(response.status).toBe(429);

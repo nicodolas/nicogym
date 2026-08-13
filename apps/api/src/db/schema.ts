@@ -96,20 +96,34 @@ export const scheduledSessions = pgTable("scheduled_sessions", {
   confirmedRecommendationId: uuid("confirmed_recommendation_id"),
 });
 
-export const workoutSessions = pgTable("workout_sessions", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  profileId: uuid("profile_id").notNull().references(() => profiles.id),
-  scheduledSessionId: uuid("scheduled_session_id").references(() => scheduledSessions.id),
-  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
-  completedAt: timestamp("completed_at", { withTimezone: true }),
-});
+export const workoutSessions = pgTable(
+  "workout_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    profileId: uuid("profile_id").notNull().references(() => profiles.id),
+    operationId: text("operation_id"),
+    scheduledSessionId: uuid("scheduled_session_id").references(() => scheduledSessions.id),
+    startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("workout_sessions_profile_operation_uidx").on(table.profileId, table.operationId),
+  ],
+);
 
-export const workoutExercises = pgTable("workout_exercises", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  workoutSessionId: uuid("workout_session_id").notNull().references(() => workoutSessions.id),
-  exerciseId: uuid("exercise_id").notNull().references(() => exercises.id),
-  position: integer("position").notNull(),
-});
+export const workoutExercises = pgTable(
+  "workout_exercises",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workoutSessionId: uuid("workout_session_id").notNull().references(() => workoutSessions.id),
+    exerciseId: uuid("exercise_id").notNull().references(() => exercises.id),
+    position: integer("position").notNull(),
+    nextSetNumber: integer("next_set_number").notNull().default(1),
+  },
+  (table) => [
+    uniqueIndex("workout_exercises_session_position_uidx").on(table.workoutSessionId, table.position),
+  ],
+);
 
 export const workoutSets = pgTable(
   "workout_sets",
@@ -117,6 +131,7 @@ export const workoutSets = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     profileId: uuid("profile_id").notNull().references(() => profiles.id),
     workoutExerciseId: uuid("workout_exercise_id").notNull().references(() => workoutExercises.id),
+    operationId: text("operation_id"),
     setNumber: integer("set_number").notNull(),
     loadKg: doublePrecision("load_kg").notNull(),
     repetitions: integer("repetitions").notNull(),
@@ -125,6 +140,7 @@ export const workoutSets = pgTable(
   },
   (table) => [
     uniqueIndex("workout_sets_exercise_number_uidx").on(table.workoutExerciseId, table.setNumber),
+    uniqueIndex("workout_sets_profile_operation_uidx").on(table.profileId, table.operationId),
   ],
 );
 
