@@ -212,6 +212,49 @@ export function createProductionApp() {
         return saved;
       },
     },
+    progress: {
+      summary: async (userId) => {
+        const totals = await database.execute(sql`
+          select
+            count(distinct workout_sessions.id)::int as sessions,
+            count(workout_sets.id)::int as sets,
+            coalesce(sum(workout_sets.load_kg * workout_sets.repetitions), 0)::float8 as "volumeKg"
+          from profiles
+          left join workout_sessions on workout_sessions.profile_id = profiles.id
+          left join workout_exercises on workout_exercises.workout_session_id = workout_sessions.id
+          left join workout_sets on workout_sets.workout_exercise_id = workout_exercises.id
+          where profiles.auth_user_id = ${userId}
+        `);
+        const latest = await database.execute(sql`
+          select
+            exercises.slug as "exerciseSlug",
+            exercises.name as "exerciseName",
+            workout_sets.load_kg as "loadKg",
+            workout_sets.repetitions,
+            workout_sets.completed_at as "completedAt"
+          from workout_sets
+          inner join profiles on profiles.id = workout_sets.profile_id
+          inner join workout_exercises on workout_exercises.id = workout_sets.workout_exercise_id
+          inner join exercises on exercises.id = workout_exercises.exercise_id
+          where profiles.auth_user_id = ${userId}
+          order by workout_sets.completed_at desc, workout_sets.id desc
+          limit 8
+        `);
+        const row = totals.rows[0];
+        return {
+          sessions: Number(row?.sessions ?? 0),
+          sets: Number(row?.sets ?? 0),
+          volumeKg: Number(row?.volumeKg ?? 0),
+          latest: latest.rows.map((item) => ({
+            exerciseSlug: String(item.exerciseSlug),
+            exerciseName: String(item.exerciseName),
+            loadKg: Number(item.loadKg),
+            repetitions: Number(item.repetitions),
+            completedAt: new Date(String(item.completedAt)).toISOString(),
+          })),
+        };
+      },
+    },
     workoutSessions: {
       start: async ({ userId, exerciseSlug, operationId }) => {
         await database.execute(sql`

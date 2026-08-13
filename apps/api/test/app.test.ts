@@ -209,6 +209,37 @@ describe("API", () => {
     expect(await response.json()).toEqual({ data: { id: "admin-1", role: "admin" } });
   });
 
+  it("returns progress belonging to the authenticated member", async () => {
+    const summary = {
+      sessions: 2,
+      sets: 6,
+      volumeKg: 2400,
+      latest: [
+        {
+          exerciseSlug: "leg-press",
+          exerciseName: "Leg press",
+          loadKg: 40,
+          repetitions: 10,
+          completedAt: "2026-08-13T07:00:00.000Z",
+        },
+      ],
+    };
+    const requestedUsers: string[] = [];
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      progress: { summary: async (userId) => (requestedUsers.push(userId), summary) },
+    }).request("/api/progress");
+
+    expect(response.status).toBe(200);
+    expect(requestedUsers).toEqual(["user-1"]);
+    expect(await response.json()).toEqual({ data: summary });
+  });
+
+  it("requires authentication to read progress", async () => {
+    const response = await createApp().request("/api/progress");
+    expect(response.status).toBe(401);
+  });
+
   it("does not trust a normal member with exercise imports", async () => {
     const response = await createApp({ currentUser: async () => authenticatedUser }).request(
       "/api/admin/exercises/import/preview",

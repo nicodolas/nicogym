@@ -3,6 +3,7 @@ import 'package:nicogym/admin/catalog_admin_screen.dart';
 import 'package:nicogym/admin/catalog_api.dart';
 import 'package:nicogym/help/context_help.dart';
 import 'package:nicogym/member/planner_api.dart';
+import 'package:nicogym/member/progress_api.dart';
 import 'package:nicogym/workouts/exercise.dart';
 
 class MemberHubScreen extends StatefulWidget {
@@ -13,6 +14,7 @@ class MemberHubScreen extends StatefulWidget {
     this.initialTab = 0,
     this.plannerRepository,
     this.catalogRepository,
+    this.progressRepository,
   });
 
   final Future<List<Exercise>> Function() exerciseLoader;
@@ -20,6 +22,7 @@ class MemberHubScreen extends StatefulWidget {
   final int initialTab;
   final PlannerRepository? plannerRepository;
   final CatalogRepository? catalogRepository;
+  final ProgressRepository? progressRepository;
 
   @override
   State<MemberHubScreen> createState() => _MemberHubScreenState();
@@ -66,6 +69,7 @@ class _MemberHubScreenState extends State<MemberHubScreen> {
           onOpen: widget.onOpenExercise,
         ),
         _SchedulePlanner(repository: widget.plannerRepository),
+        _ProgressView(repository: widget.progressRepository),
         if (_isAdmin && widget.catalogRepository != null)
           CatalogAdminScreen(repository: widget.catalogRepository!),
       ],
@@ -82,6 +86,10 @@ class _MemberHubScreenState extends State<MemberHubScreen> {
           icon: Icon(Icons.calendar_month_outlined),
           label: 'Lịch & gợi ý',
         ),
+        const NavigationDestination(
+          icon: Icon(Icons.insights_outlined),
+          label: 'Tiến độ',
+        ),
         if (_isAdmin)
           const NavigationDestination(
             icon: Icon(Icons.admin_panel_settings_outlined),
@@ -91,6 +99,139 @@ class _MemberHubScreenState extends State<MemberHubScreen> {
     ),
   );
 }
+
+class _ProgressView extends StatefulWidget {
+  const _ProgressView({required this.repository});
+
+  final ProgressRepository? repository;
+
+  @override
+  State<_ProgressView> createState() => _ProgressViewState();
+}
+
+class _ProgressViewState extends State<_ProgressView> {
+  late Future<ProgressSummary> _summary = _load();
+
+  Future<ProgressSummary> _load() =>
+      widget.repository?.load() ??
+      Future.value(
+        const ProgressSummary(sessions: 0, sets: 0, volumeKg: 0, latest: []),
+      );
+
+  void _retry() => setState(() => _summary = _load());
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<ProgressSummary>(
+    future: _summary,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        final message = snapshot.error is ProgressException
+            ? (snapshot.error! as ProgressException).message
+            : 'Chưa tải được tiến độ.';
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off_outlined, size: 40),
+                const SizedBox(height: 12),
+                Text(message, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                OutlinedButton(onPressed: _retry, child: const Text('Thử lại')),
+              ],
+            ),
+          ),
+        );
+      }
+      if (!snapshot.hasData) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      final summary = snapshot.data!;
+      return RefreshIndicator(
+        onRefresh: () async => _retry(),
+        child: ListView(
+          key: const Key('progress-view'),
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+          children: [
+            Text('TIẾN ĐỘ', style: Theme.of(context).textTheme.displayLarge),
+            const SizedBox(height: 8),
+            const Text('Tính từ các hiệp đã đồng bộ với tài khoản của bạn.'),
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _ProgressMetric(
+                  label: 'BUỔI ĐÃ TẬP',
+                  value: '${summary.sessions}',
+                ),
+                _ProgressMetric(label: 'TỔNG HIỆP', value: '${summary.sets}'),
+                _ProgressMetric(
+                  label: 'KHỐI LƯỢNG',
+                  value: '${summary.volumeKg.round()} kg',
+                ),
+              ],
+            ),
+            const SizedBox(height: 26),
+            Text('GẦN ĐÂY', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            if (summary.latest.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(18),
+                  child: Text('Ghi hiệp đầu tiên để bắt đầu theo dõi tiến độ.'),
+                ),
+              )
+            else
+              for (final entry in summary.latest)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.fitness_center),
+                  title: Text(entry.exerciseName),
+                  subtitle: Text(_progressDate(entry.completedAt)),
+                  trailing: Text(
+                    '${_formatLoad(entry.loadKg)} kg × ${entry.repetitions}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class _ProgressMetric extends StatelessWidget {
+  const _ProgressMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 150,
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 11)),
+            const SizedBox(height: 8),
+            Text(value, style: Theme.of(context).textTheme.headlineSmall),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+String _formatLoad(double value) =>
+    value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
+
+String _progressDate(DateTime value) =>
+    '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
 
 class _ExerciseLibrary extends StatefulWidget {
   const _ExerciseLibrary({required this.loader, required this.onOpen});

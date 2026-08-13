@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nicogym/member/member_hub.dart';
 import 'package:nicogym/member/planner_api.dart';
+import 'package:nicogym/member/progress_api.dart';
 import 'package:nicogym/workouts/exercise.dart';
 
 void main() {
@@ -198,6 +199,47 @@ void main() {
     repository.completeAll();
     await tester.pumpAndSettle();
   });
+
+  testWidgets('shows synchronized workout progress and recent sets', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemberHubScreen(
+          exerciseLoader: () async => const [chestExercise],
+          onOpenExercise: (_) {},
+          initialTab: 2,
+          progressRepository: _MemoryProgressRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('TIẾN ĐỘ'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+    expect(find.text('6'), findsOneWidget);
+    expect(find.text('2400 kg'), findsOneWidget);
+    expect(find.text('Leg press'), findsOneWidget);
+    expect(find.text('40 kg × 10'), findsOneWidget);
+  });
+}
+
+class _MemoryProgressRepository implements ProgressRepository {
+  @override
+  Future<ProgressSummary> load() async => ProgressSummary(
+    sessions: 2,
+    sets: 6,
+    volumeKg: 2400,
+    latest: [
+      ProgressEntry(
+        exerciseSlug: 'leg-press',
+        exerciseName: 'Leg press',
+        loadKg: 40,
+        repetitions: 10,
+        completedAt: DateTime(2026, 8, 13),
+      ),
+    ],
+  );
 }
 
 class _MemoryPlannerRepository implements PlannerRepository {

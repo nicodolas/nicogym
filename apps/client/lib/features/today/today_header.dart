@@ -8,6 +8,7 @@ import 'package:nicogym/features/account/account_status_screen.dart';
 import 'package:nicogym/features/workout/workout_screen.dart';
 import 'package:nicogym/member/member_hub.dart';
 import 'package:nicogym/member/planner_api.dart';
+import 'package:nicogym/member/progress_api.dart';
 import 'package:nicogym/workouts/exercise.dart';
 import 'package:nicogym/workouts/workout_api.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -152,6 +153,10 @@ class _TodayHeaderState extends State<TodayHeader> {
       baseUrl: Uri.parse(widget.apiBaseUrl),
       tokenStore: authTokenStore,
     );
+    final progressApi = ProgressApi(
+      baseUrl: Uri.parse(widget.apiBaseUrl),
+      tokenStore: authTokenStore,
+    );
     try {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -167,6 +172,7 @@ class _TodayHeaderState extends State<TodayHeader> {
             },
             plannerRepository: plannerRepository,
             catalogRepository: catalogApi,
+            progressRepository: progressApi,
             onOpenExercise: (exercise) => Navigator.of(memberContext).push(
               MaterialPageRoute<void>(
                 builder: (_) => WorkoutScreen(
@@ -179,7 +185,11 @@ class _TodayHeaderState extends State<TodayHeader> {
         ),
       );
     } finally {
-      _memberCleanup = _closeMemberResources(plannerRepository, catalogApi);
+      _memberCleanup = _closeMemberResources(
+        plannerRepository,
+        catalogApi,
+        progressApi,
+      );
       unawaited(_memberCleanup);
       unawaited(_refreshAuthentication());
     }
@@ -188,6 +198,7 @@ class _TodayHeaderState extends State<TodayHeader> {
   Future<void> _closeMemberResources(
     CachedPlannerRepository plannerRepository,
     CatalogApi catalogApi,
+    ProgressApi progressApi,
   ) async {
     await plannerRepository.whenIdle();
     plannerRepository.close();
@@ -196,6 +207,7 @@ class _TodayHeaderState extends State<TodayHeader> {
       onTimeout: () {},
     );
     catalogApi.close();
+    progressApi.close();
   }
 
   Future<void> _openAccount(BuildContext context) async {
