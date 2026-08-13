@@ -197,10 +197,26 @@ void main() {
 
     expect(find.byKey(const Key('planner-onboarding')), findsNothing);
     expect(repository.saved?.weeklySchedule, hasLength(4));
-    expect(repository.saved?.todayWorkout, 'Toàn thân A');
+    expect(
+      repository.saved!.weeklySchedule.map((session) => session.title),
+      contains(repository.saved?.todayWorkout),
+    );
     expect(repository.saved?.goal, 'general_fitness');
     expect(repository.saved?.sessionMinutes, 60);
-    expect(find.text('60 phút · 4 bài · 12 hiệp'), findsOneWidget);
+    expect(find.text('60 phút · 5 bài · 15 hiệp'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('schedule-1')),
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const Key('schedule-1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Buổi toàn thân mới');
+    await tester.tap(find.text('Lưu'));
+    await tester.pumpAndSettle();
+
+    expect(repository.saved?.weeklySchedule.first.title, 'Buổi toàn thân mới');
   });
 
   testWidgets('submits the latest planner snapshot while a save is pending', (

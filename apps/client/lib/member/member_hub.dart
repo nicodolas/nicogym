@@ -487,12 +487,92 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
 
   Future<void> _finishOnboarding() async {
     final schedule = _sampleSchedule(_onboardingDays);
+    final nextSession = _nextSession(schedule, DateTime.now().weekday);
     setState(() {
       _weeklySchedule = schedule;
-      _todayWorkout = schedule.first.title;
+      _todayWorkout = nextSession.title;
       _suggestionAccepted = false;
       _dismissedSuggestion = false;
       _needsOnboarding = false;
+    });
+    await _save();
+  }
+
+  PlannedSession _nextSession(List<PlannedSession> schedule, int weekday) {
+    final ordered = [...schedule]..sort((a, b) => a.day.compareTo(b.day));
+    return ordered.firstWhere(
+      (session) => session.day >= weekday,
+      orElse: () => ordered.first,
+    );
+  }
+
+  Future<void> _editSession(PlannedSession session) async {
+    final titleController = TextEditingController(text: session.title);
+    var selectedDay = session.day;
+    final usedDays = _weeklySchedule
+        .where((item) => item != session)
+        .map((item) => item.day)
+        .toSet();
+    final updated = await showDialog<PlannedSession>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Sửa buổi tập'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  maxLength: 80,
+                  decoration: const InputDecoration(labelText: 'Tên buổi tập'),
+                ),
+                DropdownButtonFormField<int>(
+                  initialValue: selectedDay,
+                  decoration: const InputDecoration(labelText: 'Ngày tập'),
+                  items: [
+                    for (var day = 1; day <= 7; day++)
+                      if (!usedDays.contains(day))
+                        DropdownMenuItem(
+                          value: day,
+                          child: Text(_dayLabel(day)),
+                        ),
+                  ],
+                  onChanged: (value) =>
+                      setDialogState(() => selectedDay = value ?? selectedDay),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final title = titleController.text.trim();
+                if (title.isNotEmpty) {
+                  Navigator.pop(
+                    context,
+                    PlannedSession(day: selectedDay, title: title),
+                  );
+                }
+              },
+              child: const Text('Lưu'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (updated == null || !mounted) return;
+    setState(() {
+      _weeklySchedule =
+          _weeklySchedule
+              .map((item) => item == session ? updated : item)
+              .toList()
+            ..sort((a, b) => a.day.compareTo(b.day));
+      if (_todayWorkout == session.title) _todayWorkout = updated.title;
     });
     await _save();
   }
@@ -528,6 +608,16 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_needsOnboarding) return _buildOnboarding(context);
     const elapsedRecoveryHours = 24;
+    final exerciseCount = switch (_onboardingMinutes) {
+      30 => 3,
+      60 => 5,
+      _ => 4,
+    };
+    final isScheduledToday = _weeklySchedule.any(
+      (session) =>
+          session.day == DateTime.now().weekday &&
+          session.title == _todayWorkout,
+    );
     final musclesReady = elapsedRecoveryHours >= _recoveryHours;
     final alternativeWorkout = _weeklySchedule
         .map((session) => session.title)
@@ -565,13 +655,15 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('HÔM NAY'),
+                Text(isScheduledToday ? 'HÔM NAY' : 'BUỔI TIẾP THEO'),
                 const SizedBox(height: 8),
                 Text(
                   _todayWorkout,
                   style: Theme.of(context).textTheme.headlineLarge,
                 ),
-                Text('$_onboardingMinutes phút · 4 bài · 12 hiệp'),
+                Text(
+                  '$_onboardingMinutes phút · $exerciseCount bài · ${exerciseCount * 3} hiệp',
+                ),
               ],
             ),
           ),
@@ -631,11 +723,13 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
         const SizedBox(height: 8),
         for (final session in _weeklySchedule)
           ListTile(
+            key: ValueKey('schedule-${session.day}'),
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.calendar_today_outlined),
             title: Text(session.title),
             subtitle: Text(_dayLabel(session.day)),
-            trailing: const Icon(Icons.drag_handle_rounded),
+            trailing: const Icon(Icons.edit_outlined),
+            onTap: _saving ? null : () => _editSession(session),
           ),
         const Divider(height: 32),
         Text(
