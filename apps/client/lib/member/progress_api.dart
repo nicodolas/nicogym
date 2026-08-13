@@ -88,7 +88,11 @@ class ProgressApi implements ProgressRepository {
           )
           .timeout(const Duration(seconds: 15));
       if (response.statusCode == 401) {
-        if (await tokenStore.read() == token) await tokenStore.clear();
+        if (tokenStore case final ConditionalTokenStore conditional) {
+          await conditional.clearIfMatches(token);
+        } else if (await tokenStore.read() == token) {
+          await tokenStore.clear();
+        }
         throw const ProgressException('Phiên đăng nhập đã hết hạn.');
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -102,6 +106,14 @@ class ProgressApi implements ProgressRepository {
       return ProgressSummary.fromJson(payload['data'] as Map<String, dynamic>);
     } on ProgressException {
       rethrow;
+    } on FormatException {
+      throw const ProgressException(
+        'Máy chủ trả về dữ liệu tiến độ không hợp lệ.',
+      );
+    } on TypeError {
+      throw const ProgressException(
+        'Máy chủ trả về dữ liệu tiến độ không hợp lệ.',
+      );
     } catch (_) {
       throw const ProgressException('Không kết nối được máy chủ.');
     }

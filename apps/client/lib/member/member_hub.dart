@@ -118,7 +118,11 @@ class _ProgressViewState extends State<_ProgressView> {
         const ProgressSummary(sessions: 0, sets: 0, volumeKg: 0, latest: []),
       );
 
-  void _retry() => setState(() => _summary = _load());
+  Future<void> _retry() async {
+    final next = _load();
+    setState(() => _summary = next);
+    await next;
+  }
 
   @override
   Widget build(BuildContext context) => FutureBuilder<ProgressSummary>(
@@ -149,9 +153,10 @@ class _ProgressViewState extends State<_ProgressView> {
       }
       final summary = snapshot.data!;
       return RefreshIndicator(
-        onRefresh: () async => _retry(),
+        onRefresh: _retry,
         child: ListView(
           key: const Key('progress-view'),
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
           children: [
             Text('TIẾN ĐỘ', style: Theme.of(context).textTheme.displayLarge),

@@ -53,6 +53,25 @@ void main() {
     await expectLater(api.load(), throwsA(isA<ProgressException>()));
     expect(store.token, isNull);
   });
+
+  test('distinguishes malformed server data from a network failure', () async {
+    final api = ProgressApi(
+      baseUrl: Uri.parse('https://api.example.test'),
+      tokenStore: _TokenStore('token'),
+      client: MockClient((_) async => http.Response('{broken', 200)),
+    );
+
+    await expectLater(
+      api.load(),
+      throwsA(
+        isA<ProgressException>().having(
+          (error) => error.message,
+          'message',
+          'Máy chủ trả về dữ liệu tiến độ không hợp lệ.',
+        ),
+      ),
+    );
+  });
 }
 
 class _TokenStore implements TokenStore {

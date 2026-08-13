@@ -222,6 +222,42 @@ void main() {
     expect(find.text('Leg press'), findsOneWidget);
     expect(find.text('40 kg × 10'), findsOneWidget);
   });
+
+  testWidgets('explains how to begin when progress is empty', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemberHubScreen(
+          exerciseLoader: () async => const [chestExercise],
+          onOpenExercise: (_) {},
+          initialTab: 2,
+          progressRepository: _EmptyProgressRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Ghi hiệp đầu tiên để bắt đầu theo dõi tiến độ.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shows a useful progress error and retry action', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemberHubScreen(
+          exerciseLoader: () async => const [chestExercise],
+          onOpenExercise: (_) {},
+          initialTab: 2,
+          progressRepository: _FailingProgressRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Phiên đăng nhập đã hết hạn.'), findsOneWidget);
+    expect(find.text('Thử lại'), findsOneWidget);
+  });
 }
 
 class _MemoryProgressRepository implements ProgressRepository {
@@ -240,6 +276,19 @@ class _MemoryProgressRepository implements ProgressRepository {
       ),
     ],
   );
+}
+
+class _EmptyProgressRepository implements ProgressRepository {
+  @override
+  Future<ProgressSummary> load() async =>
+      const ProgressSummary(sessions: 0, sets: 0, volumeKg: 0, latest: []);
+}
+
+class _FailingProgressRepository implements ProgressRepository {
+  @override
+  Future<ProgressSummary> load() async {
+    throw const ProgressException('Phiên đăng nhập đã hết hạn.');
+  }
 }
 
 class _MemoryPlannerRepository implements PlannerRepository {

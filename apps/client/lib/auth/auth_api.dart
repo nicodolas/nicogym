@@ -18,7 +18,11 @@ abstract interface class UserScopedTokenStore implements TokenStore {
   Future<void> writeForUser(String token, String userId);
 }
 
-class SecureTokenStore implements UserScopedTokenStore {
+abstract interface class ConditionalTokenStore implements TokenStore {
+  Future<bool> clearIfMatches(String expectedToken);
+}
+
+class SecureTokenStore implements UserScopedTokenStore, ConditionalTokenStore {
   SecureTokenStore({FlutterSecureStorage? storage})
     : _storage = storage ?? const FlutterSecureStorage();
 
@@ -26,27 +30,53 @@ class SecureTokenStore implements UserScopedTokenStore {
   static const _plannerCacheKey = 'planner_state_v1';
   static const _userIdKey = 'better_auth_user_id';
   final FlutterSecureStorage _storage;
+  Future<void> _tokenOperations = Future<void>.value();
+
+  Future<T> _exclusive<T>(Future<T> Function() operation) async {
+    final previous = _tokenOperations;
+    final completed = Completer<void>();
+    _tokenOperations = completed.future;
+    try {
+      await previous;
+      return await operation();
+    } finally {
+      completed.complete();
+    }
+  }
 
   @override
-  Future<String?> read() => _storage.read(key: _tokenKey);
+  Future<String?> read() => _exclusive(() => _storage.read(key: _tokenKey));
 
   @override
   Future<void> write(String token) async {
-    await _storage.write(key: _tokenKey, value: token);
+    await _exclusive(() => _storage.write(key: _tokenKey, value: token));
   }
 
   @override
   Future<void> writeForUser(String token, String userId) async {
-    final previousUserId = await _storage.read(key: _userIdKey);
-    if (previousUserId != userId) {
-      await _storage.delete(key: _plannerCacheKey);
-    }
-    await _storage.write(key: _userIdKey, value: userId);
-    await write(token);
+    await _exclusive(() async {
+      final previousUserId = await _storage.read(key: _userIdKey);
+      if (previousUserId != userId) {
+        await _storage.delete(key: _plannerCacheKey);
+      }
+      await _storage.write(key: _userIdKey, value: userId);
+      await _storage.write(key: _tokenKey, value: token);
+    });
   }
 
   @override
   Future<void> clear() async {
+    await _exclusive(_clearUnlocked);
+  }
+
+  @override
+  Future<bool> clearIfMatches(String expectedToken) => _exclusive(() async {
+    if (await _storage.read(key: _tokenKey) != expectedToken) return false;
+    await _clearUnlocked();
+    return true;
+  });
+
+  Future<void> _clearUnlocked() async {
     await _storage.delete(key: _tokenKey);
     await _storage.delete(key: _userIdKey);
     await _storage.delete(key: _plannerCacheKey);

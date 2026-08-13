@@ -216,7 +216,7 @@ export function createProductionApp() {
       summary: async (userId) => {
         const totals = await database.execute(sql`
           select
-            count(distinct workout_sessions.id)::int as sessions,
+            count(distinct case when workout_sets.id is not null then workout_sessions.id end)::int as sessions,
             count(workout_sets.id)::int as sets,
             coalesce(sum(workout_sets.load_kg * workout_sets.repetitions), 0)::float8 as "volumeKg"
           from profiles
