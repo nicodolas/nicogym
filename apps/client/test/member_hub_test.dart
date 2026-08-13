@@ -168,6 +168,40 @@ void main() {
     expect(find.text('72 giờ trước khi tập lại cùng nhóm cơ'), findsOneWidget);
   });
 
+  testWidgets('creates an editable starter plan for a new member', (
+    tester,
+  ) async {
+    final repository = _MemoryPlannerRepository(null);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemberHubScreen(
+          exerciseLoader: () async => const [chestExercise],
+          onOpenExercise: (_) {},
+          initialTab: 1,
+          plannerRepository: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('planner-onboarding')), findsOneWidget);
+    await tester.tap(find.text('Khỏe hơn'));
+    await tester.tap(find.text('4 buổi'));
+    await tester.ensureVisible(find.text('60 phút'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('60 phút'));
+    await tester.ensureVisible(find.byKey(const Key('create-sample-plan')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('create-sample-plan')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('planner-onboarding')), findsNothing);
+    expect(repository.saved?.weeklySchedule, hasLength(4));
+    expect(repository.saved?.todayWorkout, 'Toàn thân A');
+    expect(repository.saved?.goal, 'general_fitness');
+    expect(repository.saved?.sessionMinutes, 60);
+  });
+
   testWidgets('submits the latest planner snapshot while a save is pending', (
     tester,
   ) async {

@@ -412,6 +412,10 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
   int _activeSaves = 0;
   String? _syncError;
   bool _retryLoad = false;
+  bool _needsOnboarding = false;
+  String _onboardingGoal = 'muscle_strength';
+  int _onboardingDays = 3;
+  int _onboardingMinutes = 45;
 
   bool get _saving => _activeSaves > 0;
 
@@ -428,10 +432,13 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
       final state = result.state ?? PlannerState.defaults;
       if (!mounted) return;
       setState(() {
+        _needsOnboarding = result.state == null;
         _weeklySchedule = state.weeklySchedule;
         _recoveryHours = state.recoveryHours.toDouble();
         _todayWorkout = state.todayWorkout;
         _suggestionAccepted = state.suggestionAccepted;
+        _onboardingGoal = state.goal;
+        _onboardingMinutes = state.sessionMinutes;
         _syncError = result.usedOfflineFallback
             ? 'Đang dùng lịch đã lưu trên thiết bị. Chạm để đồng bộ lại.'
             : null;
@@ -456,6 +463,8 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
       recoveryHours: _recoveryHours.round(),
       todayWorkout: _todayWorkout,
       suggestionAccepted: _suggestionAccepted,
+      goal: _onboardingGoal,
+      sessionMinutes: _onboardingMinutes,
     );
     setState(() {
       _activeSaves += 1;
@@ -476,8 +485,48 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
     }
   }
 
+  Future<void> _finishOnboarding() async {
+    final schedule = _sampleSchedule(_onboardingDays);
+    setState(() {
+      _weeklySchedule = schedule;
+      _todayWorkout = schedule.first.title;
+      _suggestionAccepted = false;
+      _dismissedSuggestion = false;
+      _needsOnboarding = false;
+    });
+    await _save();
+  }
+
+  List<PlannedSession> _sampleSchedule(int days) {
+    if (_onboardingGoal == 'general_fitness') {
+      const daySlots = [1, 3, 5, 7];
+      return List.generate(
+        days,
+        (index) => PlannedSession(
+          day: daySlots[index],
+          title: 'Toàn thân ${String.fromCharCode(65 + index)}',
+        ),
+      );
+    }
+    return switch (days) {
+      2 => const [
+        PlannedSession(day: 2, title: 'Toàn thân A'),
+        PlannedSession(day: 5, title: 'Toàn thân B'),
+      ],
+      4 => const [
+        PlannedSession(day: 1, title: 'Thân trên A'),
+        PlannedSession(day: 2, title: 'Thân dưới A'),
+        PlannedSession(day: 4, title: 'Thân trên B'),
+        PlannedSession(day: 6, title: 'Thân dưới B'),
+      ],
+      _ => PlannerState.defaults.weeklySchedule,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_needsOnboarding) return _buildOnboarding(context);
     const elapsedRecoveryHours = 24;
     final musclesReady = elapsedRecoveryHours >= _recoveryHours;
     final alternativeWorkout = _weeklySchedule
@@ -611,6 +660,72 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
       ],
     );
   }
+
+  Widget _buildOnboarding(BuildContext context) => ListView(
+    key: const Key('planner-onboarding'),
+    padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+    children: [
+      Text(
+        'BẮT ĐẦU NHẸ NHÀNG',
+        style: Theme.of(context).textTheme.displayLarge,
+      ),
+      const SizedBox(height: 8),
+      const Text(
+        'Chọn vài thông tin cơ bản. NicoGym sẽ tạo lịch mẫu; bạn luôn có thể sửa lại sau.',
+      ),
+      const SizedBox(height: 24),
+      Text('MỤC TIÊU', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      SegmentedButton<String>(
+        segments: const [
+          ButtonSegment(value: 'muscle_strength', label: Text('Tăng cơ')),
+          ButtonSegment(value: 'general_fitness', label: Text('Khỏe hơn')),
+        ],
+        selected: {_onboardingGoal},
+        onSelectionChanged: (value) =>
+            setState(() => _onboardingGoal = value.first),
+      ),
+      const SizedBox(height: 22),
+      Text('SỐ BUỔI MỖI TUẦN', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      SegmentedButton<int>(
+        segments: const [
+          ButtonSegment(value: 2, label: Text('2 buổi')),
+          ButtonSegment(value: 3, label: Text('3 buổi')),
+          ButtonSegment(value: 4, label: Text('4 buổi')),
+        ],
+        selected: {_onboardingDays},
+        onSelectionChanged: (value) =>
+            setState(() => _onboardingDays = value.first),
+      ),
+      const SizedBox(height: 22),
+      Text('THỜI GIAN MỖI BUỔI', style: Theme.of(context).textTheme.titleLarge),
+      SegmentedButton<int>(
+        segments: const [
+          ButtonSegment(value: 30, label: Text('30 phút')),
+          ButtonSegment(value: 45, label: Text('45 phút')),
+          ButtonSegment(value: 60, label: Text('60 phút')),
+        ],
+        selected: {_onboardingMinutes},
+        onSelectionChanged: (value) =>
+            setState(() => _onboardingMinutes = value.first),
+      ),
+      const SizedBox(height: 16),
+      FilledButton.icon(
+        key: const Key('create-sample-plan'),
+        onPressed: _saving ? null : _finishOnboarding,
+        icon: const Icon(Icons.auto_awesome_outlined),
+        label: Text(
+          'Tạo lịch $_onboardingDays buổi · $_onboardingMinutes phút',
+        ),
+      ),
+      const SizedBox(height: 10),
+      Text(
+        'Đây là lịch khởi đầu theo mục tiêu đã chọn, không phải chỉ định y tế.',
+        textAlign: TextAlign.center,
+      ),
+    ],
+  );
 
   String _dayLabel(int day) => switch (day) {
     1 => 'Thứ hai',

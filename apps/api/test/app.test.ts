@@ -15,6 +15,8 @@ describe("API", () => {
     recoveryHours: 48,
     todayWorkout: "Chân + Mông",
     suggestionAccepted: false,
+    goal: "muscle_strength" as const,
+    sessionMinutes: 45 as const,
   };
 
   it("identifies the API from its public root", async () => {

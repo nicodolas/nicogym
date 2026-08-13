@@ -38,6 +38,8 @@ void main() {
     expect(captured.headers['authorization'], 'Bearer session-token');
     expect(state.state?.weeklySchedule.single.day, 1);
     expect(state.state?.recoveryHours, 48);
+    expect(state.state?.goal, 'muscle_strength');
+    expect(state.state?.sessionMinutes, 45);
   });
 
   test('saves the complete planner state', () async {

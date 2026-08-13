@@ -33,6 +33,8 @@ class PlannerState {
     required this.recoveryHours,
     required this.todayWorkout,
     required this.suggestionAccepted,
+    this.goal = 'muscle_strength',
+    this.sessionMinutes = 45,
   });
 
   static const defaults = PlannerState(
@@ -50,12 +52,16 @@ class PlannerState {
   final int recoveryHours;
   final String todayWorkout;
   final bool suggestionAccepted;
+  final String goal;
+  final int sessionMinutes;
 
   Map<String, Object> toJson() => {
     'weeklySchedule': weeklySchedule.map((item) => item.toJson()).toList(),
     'recoveryHours': recoveryHours,
     'todayWorkout': todayWorkout,
     'suggestionAccepted': suggestionAccepted,
+    'goal': goal,
+    'sessionMinutes': sessionMinutes,
   };
 
   factory PlannerState.fromJson(Map<String, dynamic> json) {
@@ -63,6 +69,8 @@ class PlannerState {
     final recoveryHours = json['recoveryHours'];
     final todayWorkout = json['todayWorkout'];
     final suggestionAccepted = json['suggestionAccepted'];
+    final goal = json['goal'] ?? 'muscle_strength';
+    final sessionMinutes = json['sessionMinutes'] ?? 45;
     if (schedule is! List<dynamic> ||
         schedule.isEmpty ||
         recoveryHours is! int ||
@@ -70,7 +78,11 @@ class PlannerState {
         recoveryHours > 96 ||
         todayWorkout is! String ||
         todayWorkout.isEmpty ||
-        suggestionAccepted is! bool) {
+        suggestionAccepted is! bool ||
+        goal is! String ||
+        !const {'muscle_strength', 'general_fitness'}.contains(goal) ||
+        sessionMinutes is! int ||
+        !const {30, 45, 60}.contains(sessionMinutes)) {
       throw const FormatException('invalid planner state');
     }
     return PlannerState(
@@ -83,6 +95,8 @@ class PlannerState {
       recoveryHours: recoveryHours,
       todayWorkout: todayWorkout,
       suggestionAccepted: suggestionAccepted,
+      goal: goal,
+      sessionMinutes: sessionMinutes,
     );
   }
 }

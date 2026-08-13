@@ -164,6 +164,8 @@ export const plannerStates = pgTable("planner_states", {
   recoveryHours: integer("recovery_hours").notNull().default(48),
   todayWorkout: text("today_workout").notNull().default("Chân + Mông"),
   suggestionAccepted: boolean("suggestion_accepted").notNull().default(false),
+  goal: text("goal").notNull().default("muscle_strength"),
+  sessionMinutes: integer("session_minutes").notNull().default(45),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
