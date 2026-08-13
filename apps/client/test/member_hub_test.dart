@@ -212,7 +212,12 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('schedule-1')));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Buổi toàn thân mới');
+    await tester.enterText(find.byType(TextFormField), 'Toàn thân B');
+    await tester.tap(find.text('Lưu'));
+    await tester.pump();
+    expect(find.text('Tên buổi tập đã tồn tại.'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextFormField), 'Buổi toàn thân mới');
     await tester.tap(find.text('Lưu'));
     await tester.pumpAndSettle();
 

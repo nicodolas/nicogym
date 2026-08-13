@@ -507,7 +507,8 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
   }
 
   Future<void> _editSession(PlannedSession session) async {
-    final titleController = TextEditingController(text: session.title);
+    var title = session.title;
+    String? titleError;
     var selectedDay = session.day;
     final usedDays = _weeklySchedule
         .where((item) => item != session)
@@ -522,10 +523,14 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
-                  controller: titleController,
+                TextFormField(
+                  initialValue: title,
                   maxLength: 80,
-                  decoration: const InputDecoration(labelText: 'Tên buổi tập'),
+                  decoration: InputDecoration(
+                    labelText: 'Tên buổi tập',
+                    errorText: titleError,
+                  ),
+                  onChanged: (value) => title = value,
                 ),
                 DropdownButtonFormField<int>(
                   initialValue: selectedDay,
@@ -551,11 +556,22 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
             ),
             FilledButton(
               onPressed: () {
-                final title = titleController.text.trim();
-                if (title.isNotEmpty) {
+                final normalizedTitle = title.trim();
+                final duplicate = _weeklySchedule.any(
+                  (item) =>
+                      item != session &&
+                      item.title.toLowerCase() == normalizedTitle.toLowerCase(),
+                );
+                if (normalizedTitle.isEmpty || duplicate) {
+                  setDialogState(
+                    () => titleError = normalizedTitle.isEmpty
+                        ? 'Nhập tên buổi tập.'
+                        : 'Tên buổi tập đã tồn tại.',
+                  );
+                } else {
                   Navigator.pop(
                     context,
-                    PlannedSession(day: selectedDay, title: title),
+                    PlannedSession(day: selectedDay, title: normalizedTitle),
                   );
                 }
               },
