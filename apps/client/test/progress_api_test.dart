@@ -55,6 +55,18 @@ void main() {
     expect(store.token, isNull);
   });
 
+  test('does not unsafely clear a basic token store on unauthorized', () async {
+    final store = _BasicTokenStore('expired');
+    final api = ProgressApi(
+      baseUrl: Uri.parse('https://api.example.test'),
+      tokenStore: store,
+      client: MockClient((_) async => http.Response('', 401)),
+    );
+
+    await expectLater(api.load(), throwsA(isA<ProgressException>()));
+    expect(store.token, 'expired');
+  });
+
   test('distinguishes malformed server data from a network failure', () async {
     final api = ProgressApi(
       baseUrl: Uri.parse('https://api.example.test'),
@@ -118,6 +130,20 @@ class _TokenStore implements ConditionalTokenStore {
     token = null;
     return true;
   }
+
+  @override
+  Future<String?> read() async => token;
+
+  @override
+  Future<void> write(String value) async => token = value;
+}
+
+class _BasicTokenStore implements TokenStore {
+  _BasicTokenStore(this.token);
+  String? token;
+
+  @override
+  Future<void> clear() async => token = null;
 
   @override
   Future<String?> read() async => token;

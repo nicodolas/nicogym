@@ -153,14 +153,10 @@ class _TodayHeaderState extends State<TodayHeader> {
       baseUrl: Uri.parse(widget.apiBaseUrl),
       tokenStore: authTokenStore,
     );
-    final progressApi = authTokenStore is ConditionalTokenStore
-        ? ProgressApi(
-            baseUrl: Uri.parse(widget.apiBaseUrl),
-            tokenStore: authTokenStore,
-          )
-        : null;
-    final progressRepository =
-        progressApi ?? const UnavailableProgressRepository();
+    final progressApi = ProgressApi(
+      baseUrl: Uri.parse(widget.apiBaseUrl),
+      tokenStore: authTokenStore,
+    );
     try {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -176,7 +172,7 @@ class _TodayHeaderState extends State<TodayHeader> {
             },
             plannerRepository: plannerRepository,
             catalogRepository: catalogApi,
-            progressRepository: progressRepository,
+            progressRepository: progressApi,
             onOpenExercise: (exercise) => Navigator.of(memberContext).push(
               MaterialPageRoute<void>(
                 builder: (_) => WorkoutScreen(
@@ -202,7 +198,7 @@ class _TodayHeaderState extends State<TodayHeader> {
   Future<void> _closeMemberResources(
     CachedPlannerRepository plannerRepository,
     CatalogApi catalogApi,
-    ProgressApi? progressApi,
+    ProgressApi progressApi,
   ) async {
     await plannerRepository.whenIdle();
     plannerRepository.close();
@@ -211,13 +207,11 @@ class _TodayHeaderState extends State<TodayHeader> {
       onTimeout: () {},
     );
     catalogApi.close();
-    if (progressApi != null) {
-      await progressApi.whenIdle().timeout(
-        const Duration(seconds: 16),
-        onTimeout: () {},
-      );
-      progressApi.close();
-    }
+    await progressApi.whenIdle().timeout(
+      const Duration(seconds: 16),
+      onTimeout: () {},
+    );
+    progressApi.close();
   }
 
   Future<void> _openAccount(BuildContext context) async {

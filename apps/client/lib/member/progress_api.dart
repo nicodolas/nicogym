@@ -64,17 +64,6 @@ abstract interface class ProgressRepository {
   Future<ProgressSummary> load();
 }
 
-class UnavailableProgressRepository implements ProgressRepository {
-  const UnavailableProgressRepository();
-
-  @override
-  Future<ProgressSummary> load() => Future.error(
-    const ProgressException(
-      'Thiết bị này chưa hỗ trợ đồng bộ tiến độ an toàn.',
-    ),
-  );
-}
-
 class ProgressApi implements ProgressRepository {
   ProgressApi({
     required this.baseUrl,
@@ -83,7 +72,7 @@ class ProgressApi implements ProgressRepository {
   }) : _client = client ?? http.Client();
 
   final Uri baseUrl;
-  final ConditionalTokenStore tokenStore;
+  final TokenStore tokenStore;
   final http.Client _client;
   final Set<Future<void>> _pendingRequests = {};
 
@@ -103,7 +92,9 @@ class ProgressApi implements ProgressRepository {
           )
           .timeout(const Duration(seconds: 15));
       if (response.statusCode == 401) {
-        await tokenStore.clearIfMatches(token);
+        if (tokenStore case final ConditionalTokenStore conditional) {
+          await conditional.clearIfMatches(token);
+        }
         throw const ProgressException('Phiên đăng nhập đã hết hạn.');
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
