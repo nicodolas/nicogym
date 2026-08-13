@@ -183,11 +183,12 @@ class _TodayHeaderState extends State<TodayHeader> {
     CachedPlannerRepository plannerRepository,
     CatalogApi catalogApi,
   ) async {
-    await Future.wait([
-      plannerRepository.whenIdle(),
-      catalogApi.whenIdle(),
-    ]).timeout(const Duration(seconds: 16), onTimeout: () => const []);
+    await plannerRepository.whenIdle();
     plannerRepository.close();
+    await catalogApi.whenIdle().timeout(
+      const Duration(seconds: 16),
+      onTimeout: () {},
+    );
     catalogApi.close();
   }
 

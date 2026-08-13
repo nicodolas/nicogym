@@ -115,6 +115,7 @@ void main() {
     'whenIdle includes the latest save queued during an active save',
     () async {
       final firstResponse = Completer<http.Response>();
+      final latestResponse = Completer<http.Response>();
       final requests = <http.Request>[];
       final repository = CachedPlannerRepository(
         remote: PlannerApi(
@@ -123,10 +124,7 @@ void main() {
           client: MockClient((request) async {
             requests.add(request);
             if (requests.length == 1) return firstResponse.future;
-            return http.Response.bytes(
-              utf8.encode(jsonEncode({'data': jsonDecode(request.body)})),
-              200,
-            );
+            return latestResponse.future;
           }),
         ),
         cache: _MemoryPlannerCache(),
@@ -144,17 +142,30 @@ void main() {
 
       final firstSave = repository.save(PlannerState.defaults);
       await Future<void>.delayed(Duration.zero);
-      final latestSave = repository.save(latest);
       final idle = repository.whenIdle();
+      var idleCompleted = false;
+      idle.then((_) => idleCompleted = true);
+      final latestSave = repository.save(latest);
       firstResponse.complete(
         http.Response.bytes(
           utf8.encode(jsonEncode({'data': PlannerState.defaults.toJson()})),
           200,
         ),
       );
+      await firstSave;
+      await Future<void>.delayed(Duration.zero);
 
-      await Future.wait([firstSave, latestSave, idle]);
       expect(requests, hasLength(2));
+      expect(idleCompleted, isFalse);
+      latestResponse.complete(
+        http.Response.bytes(
+          utf8.encode(jsonEncode({'data': latest.toJson()})),
+          200,
+        ),
+      );
+
+      await Future.wait([latestSave, idle]);
+      expect(idleCompleted, isTrue);
       expect(jsonDecode(requests.last.body)['recoveryHours'], 72);
       repository.close();
     },
