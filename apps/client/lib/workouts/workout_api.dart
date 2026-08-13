@@ -56,11 +56,11 @@ class WorkoutApi implements WorkoutRepository {
     String path,
     Map<String, dynamic> body,
   ) async {
-    final token = await tokenStore.read();
-    if (token == null || token.isEmpty) {
-      throw const WorkoutSyncException('Đăng nhập để đồng bộ buổi tập.');
-    }
     try {
+      final token = await tokenStore.read();
+      if (token == null || token.isEmpty) {
+        throw const WorkoutSyncException('Đăng nhập để đồng bộ buổi tập.');
+      }
       final response = await _client
           .post(
             baseUrl.resolve(path),
@@ -79,6 +79,7 @@ class WorkoutApi implements WorkoutRepository {
         // Use the safe error below.
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
+        if (payload?['error'] == 'unauthorized') await tokenStore.clear();
         throw WorkoutSyncException(switch (payload?['error']) {
           'unauthorized' => 'Phiên đăng nhập đã hết hạn.',
           'exercise_not_found' => 'Bài tập này chưa có trên máy chủ.',

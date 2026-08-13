@@ -25,6 +25,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   final _loadController = TextEditingController(text: '40');
   final _repsController = TextEditingController(text: '10');
   final List<String> _sets = [];
+  final List<_PendingSet> _pendingSets = [];
   YoutubePlayerController? _videoController;
   Future<String?>? _workoutExercise;
   String? _syncMessage;
@@ -69,7 +70,20 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     } on WorkoutSyncException catch (error) {
       if (mounted) setState(() => _syncMessage = error.message);
       return null;
+    } catch (_) {
+      if (mounted) {
+        setState(() => _syncMessage = 'Không kết nối được máy chủ.');
+      }
+      return null;
     }
+  }
+
+  Future<String?> _ensureWorkoutExercise() async {
+    if (widget.workoutRepository == null) return null;
+    final current = await _workoutExercise;
+    if (current != null) return current;
+    _workoutExercise = _startExercise();
+    return _workoutExercise;
   }
 
   Future<void> _logSet() async {
@@ -88,27 +102,35 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       return;
     }
     if (_logging) return;
-    setState(() => _logging = true);
-    var synced = false;
-    final workoutExerciseId = await _workoutExercise;
-    if (workoutExerciseId != null) {
-      try {
-        await widget.workoutRepository!.logSet(
-          workoutExerciseId: workoutExerciseId,
-          loadKg: load,
-          repetitions: reps,
-        );
-        synced = true;
-      } on WorkoutSyncException catch (error) {
-        if (mounted) setState(() => _syncMessage = error.message);
-      }
-    }
-    if (!mounted) return;
     setState(() {
       _sets.add('${load.toStringAsFixed(load % 1 == 0 ? 0 : 1)} kg × $reps');
-      _logging = false;
-      _syncMessage = synced ? 'Đã đồng bộ hiệp ${_sets.length}' : _syncMessage;
+      _pendingSets.add(_PendingSet(loadKg: load, repetitions: reps));
+      _logging = true;
     });
+    try {
+      final workoutExerciseId = await _ensureWorkoutExercise();
+      if (workoutExerciseId == null || widget.workoutRepository == null) return;
+      while (_pendingSets.isNotEmpty) {
+        final pending = _pendingSets.first;
+        await widget.workoutRepository!.logSet(
+          workoutExerciseId: workoutExerciseId,
+          loadKg: pending.loadKg,
+          repetitions: pending.repetitions,
+        );
+        _pendingSets.removeAt(0);
+      }
+      if (mounted) {
+        setState(() => _syncMessage = 'Đã đồng bộ hiệp ${_sets.length}');
+      }
+    } on WorkoutSyncException catch (error) {
+      if (mounted) setState(() => _syncMessage = error.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _syncMessage = 'Không kết nối được máy chủ.');
+      }
+    } finally {
+      if (mounted) setState(() => _logging = false);
+    }
   }
 
   @override
@@ -346,6 +368,13 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     alignment: Alignment.center,
     child: const Icon(Icons.image_not_supported_outlined),
   );
+}
+
+class _PendingSet {
+  const _PendingSet({required this.loadKg, required this.repetitions});
+
+  final double loadKg;
+  final int repetitions;
 }
 
 class _GuideSection extends StatelessWidget {

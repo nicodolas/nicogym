@@ -108,6 +108,62 @@ void main() {
     expect(workoutRepository.logged, [(40.0, 10)]);
   });
 
+  testWidgets('keeps a set visible when synchronization fails', (tester) async {
+    useMobileViewport(tester);
+    final workoutRepository = _FailingWorkoutRepository();
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        workoutRepository: workoutRepository,
+      ),
+    );
+    await tester.tap(find.text('Bắt đầu buổi tập'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('load-input')),
+      400,
+      scrollable: find.byType(Scrollable).last,
+    );
+
+    await tester.tap(find.text('Ghi hiệp'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('40 kg × 10'), findsOneWidget);
+    expect(find.text('HIỆP 2'), findsOneWidget);
+    expect(
+      find.text('Mạng đang gián đoạn, hiệp vẫn được giữ.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('retries pending sets after synchronization recovers', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    final workoutRepository = _RecoveringWorkoutRepository();
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        workoutRepository: workoutRepository,
+      ),
+    );
+    await tester.tap(find.text('Bắt đầu buổi tập'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('load-input')),
+      400,
+      scrollable: find.byType(Scrollable).last,
+    );
+
+    await tester.tap(find.text('Ghi hiệp'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ghi hiệp'));
+    await tester.pumpAndSettle();
+
+    expect(workoutRepository.logged, [(40.0, 10), (40.0, 10)]);
+    expect(find.text('Đã đồng bộ hiệp 2'), findsOneWidget);
+  });
+
   testWidgets('opens the Romanian deadlift guide from the workout list', (
     tester,
   ) async {
@@ -115,7 +171,13 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(NicoGymApp(exerciseLoader: loadTestExercises));
+    final workoutRepository = _MemoryWorkoutRepository();
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        workoutRepository: workoutRepository,
+      ),
+    );
     await tester.pump(const Duration(seconds: 1));
 
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
@@ -133,6 +195,7 @@ void main() {
     );
     expect(find.text('Xem video mẫu'), findsOneWidget);
     expect(find.text('Nguồn: ACE Exercise Library'), findsOneWidget);
+    expect(workoutRepository.startedSlugs, contains('romanian-deadlift'));
   });
 
   testWidgets('can go back or retry when the exercise library fails', (
@@ -178,6 +241,40 @@ void main() {
 
 class _MemoryWorkoutRepository implements WorkoutRepository {
   final List<(double, int)> logged = [];
+  final List<String> startedSlugs = [];
+
+  @override
+  Future<String> startExercise(String exerciseSlug) async {
+    startedSlugs.add(exerciseSlug);
+    return 'workout-exercise-1';
+  }
+
+  @override
+  Future<void> logSet({
+    required String workoutExerciseId,
+    required double loadKg,
+    required int repetitions,
+  }) async => logged.add((loadKg, repetitions));
+}
+
+class _FailingWorkoutRepository implements WorkoutRepository {
+  @override
+  Future<String> startExercise(String exerciseSlug) async =>
+      'workout-exercise-1';
+
+  @override
+  Future<void> logSet({
+    required String workoutExerciseId,
+    required double loadKg,
+    required int repetitions,
+  }) async {
+    throw const WorkoutSyncException('Mạng đang gián đoạn, hiệp vẫn được giữ.');
+  }
+}
+
+class _RecoveringWorkoutRepository implements WorkoutRepository {
+  final List<(double, int)> logged = [];
+  var attempts = 0;
 
   @override
   Future<String> startExercise(String exerciseSlug) async =>
@@ -188,5 +285,11 @@ class _MemoryWorkoutRepository implements WorkoutRepository {
     required String workoutExerciseId,
     required double loadKg,
     required int repetitions,
-  }) async => logged.add((loadKg, repetitions));
+  }) async {
+    attempts += 1;
+    if (attempts == 1) {
+      throw const WorkoutSyncException('Mạng đang gián đoạn.');
+    }
+    logged.add((loadKg, repetitions));
+  }
 }

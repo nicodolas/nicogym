@@ -60,6 +60,43 @@ void main() {
       ),
     );
   });
+
+  test('clears an expired token after an unauthorized response', () async {
+    final tokenStore = _TokenStore('expired-token');
+    final api = WorkoutApi(
+      baseUrl: Uri.parse('https://api.example.test'),
+      tokenStore: tokenStore,
+      client: MockClient(
+        (_) async => http.Response(jsonEncode({'error': 'unauthorized'}), 401),
+      ),
+    );
+
+    await expectLater(
+      api.startExercise('leg-press'),
+      throwsA(isA<WorkoutSyncException>()),
+    );
+
+    expect(tokenStore.token, isNull);
+  });
+
+  test('converts secure storage failures into sync errors', () async {
+    final api = WorkoutApi(
+      baseUrl: Uri.parse('https://api.example.test'),
+      tokenStore: _ThrowingTokenStore(),
+      client: MockClient((_) async => http.Response('', 500)),
+    );
+
+    await expectLater(
+      api.startExercise('leg-press'),
+      throwsA(
+        isA<WorkoutSyncException>().having(
+          (error) => error.message,
+          'message',
+          'Không kết nối được máy chủ.',
+        ),
+      ),
+    );
+  });
 }
 
 class _TokenStore implements TokenStore {
@@ -74,4 +111,15 @@ class _TokenStore implements TokenStore {
 
   @override
   Future<void> write(String value) async => token = value;
+}
+
+class _ThrowingTokenStore implements TokenStore {
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<String?> read() => throw StateError('storage unavailable');
+
+  @override
+  Future<void> write(String value) async {}
 }

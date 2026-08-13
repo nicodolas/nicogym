@@ -6,7 +6,7 @@ import 'package:nicogym/features/workout/workout_screen.dart';
 import 'package:nicogym/workouts/exercise.dart';
 import 'package:nicogym/workouts/workout_api.dart';
 
-class NicoGymApp extends StatelessWidget {
+class NicoGymApp extends StatefulWidget {
   const NicoGymApp({
     super.key,
     this.showRecoverySuggestion = false,
@@ -33,23 +33,41 @@ class NicoGymApp extends StatelessWidget {
   final WorkoutRepository? workoutRepository;
 
   @override
+  State<NicoGymApp> createState() => _NicoGymAppState();
+}
+
+class _NicoGymAppState extends State<NicoGymApp> {
+  late final TokenStore _tokenStore =
+      widget.memberTokenStore ?? SecureTokenStore();
+  late final WorkoutRepository _workoutRepository =
+      widget.workoutRepository ??
+      WorkoutApi(
+        baseUrl: Uri.parse(widget.apiBaseUrl),
+        tokenStore: _tokenStore,
+      );
+
+  @override
+  void dispose() {
+    if (widget.workoutRepository == null) {
+      (_workoutRepository as WorkoutApi).close();
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final tokenStore = memberTokenStore ?? SecureTokenStore();
-    final workoutSync =
-        workoutRepository ??
-        WorkoutApi(baseUrl: Uri.parse(apiBaseUrl), tokenStore: tokenStore);
     return MaterialApp(
       title: 'NicoGym',
       debugShowCheckedModeBanner: false,
       theme: buildNicoGymTheme(),
       home: TodayScreen(
-        showRecoverySuggestion: showRecoverySuggestion,
-        apkDownloadUrl: apkDownloadUrl,
-        apiBaseUrl: apiBaseUrl,
-        baseAppVersion: baseAppVersion,
-        exerciseLoader: exerciseLoader,
-        memberTokenStore: tokenStore,
-        workoutRepository: workoutSync,
+        showRecoverySuggestion: widget.showRecoverySuggestion,
+        apkDownloadUrl: widget.apkDownloadUrl,
+        apiBaseUrl: widget.apiBaseUrl,
+        baseAppVersion: widget.baseAppVersion,
+        exerciseLoader: widget.exerciseLoader,
+        memberTokenStore: _tokenStore,
+        workoutRepository: _workoutRepository,
       ),
     );
   }
@@ -112,7 +130,10 @@ class TodayScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 20),
                           ],
-                          _WorkoutOverview(loader: exerciseLoader),
+                          _WorkoutOverview(
+                            loader: exerciseLoader,
+                            workoutRepository: workoutRepository,
+                          ),
                           const SizedBox(height: 28),
                           Center(
                             child: Text(
@@ -441,9 +462,13 @@ class _SuggestionNotice extends StatelessWidget {
 }
 
 class _WorkoutOverview extends StatefulWidget {
-  const _WorkoutOverview({required this.loader});
+  const _WorkoutOverview({
+    required this.loader,
+    required this.workoutRepository,
+  });
 
   final Future<List<Exercise>> Function() loader;
+  final WorkoutRepository workoutRepository;
 
   @override
   State<_WorkoutOverview> createState() => _WorkoutOverviewState();
@@ -489,7 +514,11 @@ class _WorkoutOverviewState extends State<_WorkoutOverview> {
             return Column(
               children: [
                 for (final entry in snapshot.data!.indexed)
-                  _ExerciseCard(index: entry.$1, exercise: entry.$2),
+                  _ExerciseCard(
+                    index: entry.$1,
+                    exercise: entry.$2,
+                    workoutRepository: widget.workoutRepository,
+                  ),
               ],
             );
           },
@@ -520,10 +549,15 @@ class _LibraryMessage extends StatelessWidget {
 }
 
 class _ExerciseCard extends StatelessWidget {
-  const _ExerciseCard({required this.index, required this.exercise});
+  const _ExerciseCard({
+    required this.index,
+    required this.exercise,
+    required this.workoutRepository,
+  });
 
   final int index;
   final Exercise exercise;
+  final WorkoutRepository workoutRepository;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -539,7 +573,10 @@ class _ExerciseCard extends StatelessWidget {
         mouseCursor: SystemMouseCursors.click,
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => WorkoutScreen(exercise: exercise),
+            builder: (_) => WorkoutScreen(
+              exercise: exercise,
+              workoutRepository: workoutRepository,
+            ),
           ),
         ),
         child: Padding(
