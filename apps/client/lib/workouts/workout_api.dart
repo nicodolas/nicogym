@@ -92,7 +92,9 @@ class WorkoutApi implements WorkoutRepository {
         final errorCode = payload?['error'] as String?;
         final unauthorized =
             response.statusCode == 401 || errorCode == 'unauthorized';
-        if (unauthorized) await tokenStore.clear();
+        if (unauthorized && await tokenStore.read() == token) {
+          await tokenStore.clear();
+        }
         throw WorkoutSyncException(switch (payload?['error']) {
           'unauthorized' => 'Phiên đăng nhập đã hết hạn.',
           'exercise_not_found' => 'Bài tập này chưa có trên máy chủ.',

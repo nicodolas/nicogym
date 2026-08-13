@@ -89,6 +89,26 @@ void main() {
     expect(tokenStore.token, isNull);
   });
 
+  test(
+    'does not clear a newer token after an older request gets 401',
+    () async {
+      final tokenStore = _RotatingTokenStore();
+      final api = WorkoutApi(
+        baseUrl: Uri.parse('https://api.example.test'),
+        tokenStore: tokenStore,
+        client: MockClient((_) async => http.Response('', 401)),
+      );
+
+      await expectLater(
+        api.startExercise('leg-press', operationId: 'session-operation-1'),
+        throwsA(isA<WorkoutSyncException>()),
+      );
+
+      expect(await tokenStore.read(), 'new-token');
+      expect(tokenStore.clearCalls, 0);
+    },
+  );
+
   test('converts secure storage failures into sync errors', () async {
     final api = WorkoutApi(
       baseUrl: Uri.parse('https://api.example.test'),
@@ -183,6 +203,23 @@ class _ThrowingTokenStore implements TokenStore {
 
   @override
   Future<String?> read() => throw StateError('storage unavailable');
+
+  @override
+  Future<void> write(String value) async {}
+}
+
+class _RotatingTokenStore implements TokenStore {
+  var reads = 0;
+  var clearCalls = 0;
+
+  @override
+  Future<void> clear() async => clearCalls += 1;
+
+  @override
+  Future<String?> read() async {
+    reads += 1;
+    return reads == 1 ? 'old-token' : 'new-token';
+  }
 
   @override
   Future<void> write(String value) async {}

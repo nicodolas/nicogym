@@ -240,6 +240,7 @@ export function createProductionApp() {
             on exercises.slug = ${exerciseSlug} and exercises.archived = false
           on conflict (workout_session_id, position)
           do update set position = excluded.position
+          where workout_exercises.exercise_id = excluded.exercise_id
           returning workout_exercises.id
         `);
         return result.rows[0]?.id ? String(result.rows[0].id) : null;
@@ -254,6 +255,25 @@ export function createProductionApp() {
         `);
 
         const result = await database.execute(sql`
+          with target as (
+            select profiles.id as profile_id, workout_exercises.id as workout_exercise_id
+            from profiles
+            inner join workout_sessions
+              on workout_sessions.profile_id = profiles.id
+            inner join workout_exercises
+              on workout_exercises.workout_session_id = workout_sessions.id
+              and workout_exercises.id = ${workoutExerciseId}::uuid
+            where profiles.auth_user_id = ${userId}
+          ), allocated as (
+            update workout_exercises
+            set next_set_number = workout_exercises.next_set_number + 1
+            from target
+            where workout_exercises.id = target.workout_exercise_id
+            returning
+              target.profile_id,
+              workout_exercises.id as workout_exercise_id,
+              workout_exercises.next_set_number - 1 as set_number
+          )
           insert into workout_sets (
             profile_id,
             workout_exercise_id,
@@ -263,25 +283,19 @@ export function createProductionApp() {
             repetitions
           )
           select
-            profiles.id,
-            ${workoutExerciseId}::uuid,
+            allocated.profile_id,
+            allocated.workout_exercise_id,
             ${operationId},
-            coalesce(max(workout_sets.set_number), 0) + 1,
+            allocated.set_number,
             ${loadKg},
             ${repetitions}
-          from profiles
-          inner join workout_sessions
-            on workout_sessions.profile_id = profiles.id
-          inner join workout_exercises
-            on workout_exercises.workout_session_id = workout_sessions.id
-            and workout_exercises.id = ${workoutExerciseId}::uuid
-          left join workout_sets
-            on workout_sets.workout_exercise_id = ${workoutExerciseId}::uuid
-          where profiles.auth_user_id = ${userId}
-          group by profiles.id
+          from allocated
           on conflict (profile_id, operation_id)
           do update set operation_id = excluded.operation_id
-          returning id
+          where workout_sets.workout_exercise_id = excluded.workout_exercise_id
+            and workout_sets.load_kg = excluded.load_kg
+            and workout_sets.repetitions = excluded.repetitions
+          returning workout_sets.id
         `);
         return (result.rowCount ?? 0) > 0;
       },

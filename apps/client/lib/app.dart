@@ -40,6 +40,7 @@ class _NicoGymAppState extends State<NicoGymApp> {
   late TokenStore _tokenStore;
   late WorkoutRepository _workoutRepository;
   WorkoutApi? _ownedWorkoutApi;
+  final List<WorkoutApi> _retiredWorkoutApis = [];
 
   @override
   void initState() {
@@ -53,7 +54,9 @@ class _NicoGymAppState extends State<NicoGymApp> {
     if (oldWidget.memberTokenStore != widget.memberTokenStore ||
         oldWidget.workoutRepository != widget.workoutRepository ||
         oldWidget.apiBaseUrl != widget.apiBaseUrl) {
-      _ownedWorkoutApi?.close();
+      if (_ownedWorkoutApi case final api?) {
+        _retiredWorkoutApis.add(api);
+      }
       _configureDependencies();
     }
   }
@@ -72,6 +75,9 @@ class _NicoGymAppState extends State<NicoGymApp> {
   @override
   void dispose() {
     _ownedWorkoutApi?.close();
+    for (final api in _retiredWorkoutApis) {
+      api.close();
+    }
     super.dispose();
   }
 
@@ -134,6 +140,7 @@ class TodayScreen extends StatelessWidget {
                       sliver: SliverList.list(
                         children: [
                           TodayHeader(
+                            key: ObjectKey(memberTokenStore),
                             apkDownloadUrl: apkDownloadUrl,
                             apiBaseUrl: apiBaseUrl,
                             exerciseLoader: exerciseLoader,

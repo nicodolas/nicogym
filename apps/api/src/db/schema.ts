@@ -118,6 +118,7 @@ export const workoutExercises = pgTable(
     workoutSessionId: uuid("workout_session_id").notNull().references(() => workoutSessions.id),
     exerciseId: uuid("exercise_id").notNull().references(() => exercises.id),
     position: integer("position").notNull(),
+    nextSetNumber: integer("next_set_number").notNull().default(1),
   },
   (table) => [
     uniqueIndex("workout_exercises_session_position_uidx").on(table.workoutSessionId, table.position),

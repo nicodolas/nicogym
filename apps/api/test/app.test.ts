@@ -127,6 +127,62 @@ describe("API", () => {
     expect(await response.json()).toEqual({ error: "exercise_not_found" });
   });
 
+  it("requires authentication to start a workout session", async () => {
+    const response = await createApp().request("/api/workout-sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ exerciseSlug: "leg-press", operationId: "session-operation-1" }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects malformed workout-session JSON", async () => {
+    const response = await createApp({ currentUser: async () => authenticatedUser }).request(
+      "/api/workout-sessions",
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{bad-json" },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_workout_session" });
+  });
+
+  it("rate limits workout-session creation", async () => {
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      workoutWriteAllowed: () => false,
+    }).request("/api/workout-sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ exerciseSlug: "leg-press", operationId: "session-operation-1" }),
+    });
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
+  });
+
+  it("requires JSON content for workout-session creation", async () => {
+    const response = await createApp({ currentUser: async () => authenticatedUser }).request(
+      "/api/workout-sessions",
+      { method: "POST", headers: { "content-type": "text/plain" }, body: "not-json" },
+    );
+
+    expect(response.status).toBe(415);
+  });
+
+  it("rejects oversized workout-session requests", async () => {
+    const response = await createApp({ currentUser: async () => authenticatedUser }).request(
+      "/api/workout-sessions",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ padding: "x".repeat(33 * 1024) }),
+      },
+    );
+
+    expect(response.status).toBe(413);
+  });
+
   it("requires authentication to read the planner", async () => {
     const response = await createApp().request("/api/planner");
     expect(response.status).toBe(401);

@@ -50,6 +50,13 @@
       "when": 1786603122145,
       "tag": "0006_sudden_zodiak",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786604126292,
+      "tag": "0007_bitter_johnny_storm",
+      "breakpoints": true
     }
   ]
 }
