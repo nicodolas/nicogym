@@ -64,6 +64,13 @@
       "when": 1786636188749,
       "tag": "0008_fine_grim_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786636718508,
+      "tag": "0009_pink_quentin_quire",
+      "breakpoints": true
     }
   ]
 }

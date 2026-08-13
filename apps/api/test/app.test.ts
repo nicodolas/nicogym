@@ -353,7 +353,7 @@ describe("API", () => {
   it("returns the authenticated member planner", async () => {
     const response = await createApp({
       currentUser: async () => authenticatedUser,
-      plannerStates: { get: async () => plannerState, upsert: async (_, state) => state },
+      plannerStates: { get: async () => plannerState, upsert: async () => plannerState },
     }).request("/api/planner");
 
     expect(response.status).toBe(200);
@@ -366,7 +366,10 @@ describe("API", () => {
       currentUser: async () => authenticatedUser,
       plannerStates: {
         get: async () => null,
-        upsert: async (userId, state) => (stored.push({ userId, state }), state),
+        upsert: async (userId, state) => {
+          stored.push({ userId, state });
+          return plannerState;
+        },
       },
     }).request("/api/planner", {
       method: "PUT",
@@ -376,6 +379,33 @@ describe("API", () => {
 
     expect(response.status).toBe(200);
     expect(stored).toEqual([{ userId: "user-1", state: plannerState }]);
+  });
+
+  it("keeps onboarding preferences optional for older clients", async () => {
+    const legacyState = {
+      weeklySchedule: plannerState.weeklySchedule,
+      recoveryHours: plannerState.recoveryHours,
+      todayWorkout: plannerState.todayWorkout,
+      suggestionAccepted: plannerState.suggestionAccepted,
+    };
+    let received: unknown;
+    const response = await createApp({
+      currentUser: async () => authenticatedUser,
+      plannerStates: {
+        get: async () => plannerState,
+        upsert: async (_, state) => {
+          received = state;
+          return plannerState;
+        },
+      },
+    }).request("/api/planner", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(legacyState),
+    });
+
+    expect(response.status).toBe(200);
+    expect(received).toEqual(legacyState);
   });
 
   it("allows browser preflight for planner PUT requests", async () => {

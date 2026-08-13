@@ -1,0 +1,2 @@
+ALTER TABLE "planner_states" ADD CONSTRAINT "planner_states_goal_check" CHECK ("planner_states"."goal" in ('muscle_strength', 'general_fitness'));--> statement-breakpoint
+ALTER TABLE "planner_states" ADD CONSTRAINT "planner_states_session_minutes_check" CHECK ("planner_states"."session_minutes" in (30, 45, 60));

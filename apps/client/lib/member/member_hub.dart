@@ -571,7 +571,7 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
                   _todayWorkout,
                   style: Theme.of(context).textTheme.headlineLarge,
                 ),
-                const Text('45 phút · 4 bài · 12 hiệp'),
+                Text('$_onboardingMinutes phút · 4 bài · 12 hiệp'),
               ],
             ),
           ),

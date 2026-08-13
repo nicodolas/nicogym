@@ -200,6 +200,7 @@ void main() {
     expect(repository.saved?.todayWorkout, 'Toàn thân A');
     expect(repository.saved?.goal, 'general_fitness');
     expect(repository.saved?.sessionMinutes, 60);
+    expect(find.text('60 phút · 4 bài · 12 hiệp'), findsOneWidget);
   });
 
   testWidgets('submits the latest planner snapshot while a save is pending', (
