@@ -394,6 +394,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                           Expanded(
                             child: Text(
                               'NGHỈ  $_restLabel',
+                              key: const Key('rest-timer-label'),
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(color: Colors.white),
                             ),

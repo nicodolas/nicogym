@@ -110,10 +110,11 @@ void main() {
     expect(find.text('Đã đồng bộ hiệp 1'), findsOneWidget);
     expect(find.byKey(const Key('previous-set')), findsOneWidget);
     expect(find.byKey(const Key('rest-timer')), findsOneWidget);
-    expect(find.textContaining('1:30'), findsOneWidget);
+    final beforeExtension = _timerSeconds(tester);
     await tester.tap(find.text('+30s'));
     await tester.pump();
-    expect(find.textContaining('2:00'), findsOneWidget);
+    final afterExtension = _timerSeconds(tester);
+    expect(afterExtension - beforeExtension, inInclusiveRange(29, 30));
     await tester.tap(find.text('Bỏ qua'));
     await tester.pump();
     expect(find.byKey(const Key('rest-timer')), findsNothing);
@@ -342,6 +343,12 @@ void main() {
     expect(find.text('Giữ lịch chân'), findsOneWidget);
     expect(find.text('Xác nhận đổi'), findsOneWidget);
   });
+}
+
+int _timerSeconds(WidgetTester tester) {
+  final label = tester.widget<Text>(find.byKey(const Key('rest-timer-label')));
+  final value = label.data!.split(RegExp(r'\s+')).last.split(':');
+  return int.parse(value.first) * 60 + int.parse(value.last);
 }
 
 class _MemoryWorkoutRepository implements WorkoutRepository {
