@@ -212,6 +212,53 @@ export function createProductionApp() {
         return saved;
       },
     },
+    progress: {
+      summary: async (userId) => {
+        const result = await database.execute(sql`
+          with member as (
+            select id from profiles where auth_user_id = ${userId}
+          ), owned_sets as (
+            select workout_sets.id, workout_sets.load_kg, workout_sets.repetitions,
+              workout_sets.completed_at, workout_sessions.id as session_id,
+              exercises.slug as "exerciseSlug", exercises.name as "exerciseName"
+            from member
+            inner join workout_sets on workout_sets.profile_id = member.id
+            inner join workout_exercises on workout_exercises.id = workout_sets.workout_exercise_id
+            inner join workout_sessions
+              on workout_sessions.id = workout_exercises.workout_session_id
+              and workout_sessions.profile_id = member.id
+            inner join exercises on exercises.id = workout_exercises.exercise_id
+          ), latest as (
+            select id, "exerciseSlug", "exerciseName", load_kg as "loadKg",
+              repetitions, completed_at as "completedAt"
+            from owned_sets
+            order by completed_at desc, id desc
+            limit 8
+          )
+          select count(distinct session_id)::int as sessions,
+            count(*)::int as sets,
+            coalesce(sum(load_kg * repetitions), 0)::float8 as "volumeKg",
+            coalesce((select jsonb_agg(latest order by "completedAt" desc, id desc) from latest), '[]'::jsonb) as latest
+          from owned_sets
+        `);
+        const row = result.rows[0];
+        const latest = Array.isArray(row?.latest)
+          ? row.latest
+          : JSON.parse(String(row?.latest ?? "[]"));
+        return {
+          sessions: Number(row?.sessions ?? 0),
+          sets: Number(row?.sets ?? 0),
+          volumeKg: Number(row?.volumeKg ?? 0),
+          latest: latest.map((item: Record<string, unknown>) => ({
+            exerciseSlug: String(item.exerciseSlug),
+            exerciseName: String(item.exerciseName),
+            loadKg: Number(item.loadKg),
+            repetitions: Number(item.repetitions),
+            completedAt: new Date(String(item.completedAt)).toISOString(),
+          })),
+        };
+      },
+    },
     workoutSessions: {
       start: async ({ userId, exerciseSlug, operationId }) => {
         await database.execute(sql`

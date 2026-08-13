@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nicogym/member/member_hub.dart';
 import 'package:nicogym/member/planner_api.dart';
+import 'package:nicogym/member/progress_api.dart';
 import 'package:nicogym/workouts/exercise.dart';
 
 void main() {
@@ -198,6 +199,148 @@ void main() {
     repository.completeAll();
     await tester.pumpAndSettle();
   });
+
+  testWidgets('shows synchronized workout progress and recent sets', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemberHubScreen(
+          exerciseLoader: () async => const [chestExercise],
+          onOpenExercise: (_) {},
+          initialTab: 2,
+          progressRepository: _MemoryProgressRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('TIẾN ĐỘ'), findsOneWidget);
+    final progress = find.byKey(const Key('progress-view'));
+    expect(
+      find.descendant(of: progress, matching: find.text('2')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: progress, matching: find.text('6')),
+      findsOneWidget,
+    );
+    expect(find.text('2400.4 kg'), findsOneWidget);
+    expect(find.text('Leg press'), findsOneWidget);
+    expect(find.text('40.125 kg × 10'), findsOneWidget);
+  });
+
+  testWidgets('loads progress only after its tab is opened', (tester) async {
+    final repository = _CountingProgressRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemberHubScreen(
+          exerciseLoader: () async => const [chestExercise],
+          onOpenExercise: (_) {},
+          progressRepository: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.loads, 0);
+    await tester.tap(find.text('Tiến độ'));
+    await tester.pumpAndSettle();
+    expect(repository.loads, 1);
+
+    await tester.tap(find.text('Thư viện'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tiến độ'));
+    await tester.pumpAndSettle();
+    expect(repository.loads, 2);
+  });
+
+  testWidgets('explains how to begin when progress is empty', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemberHubScreen(
+          exerciseLoader: () async => const [chestExercise],
+          onOpenExercise: (_) {},
+          initialTab: 2,
+          progressRepository: _EmptyProgressRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Ghi hiệp đầu tiên để bắt đầu theo dõi tiến độ.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shows a useful progress error and retry action', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemberHubScreen(
+          exerciseLoader: () async => const [chestExercise],
+          onOpenExercise: (_) {},
+          initialTab: 2,
+          progressRepository: _FailingProgressRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Phiên đăng nhập đã hết hạn.'), findsOneWidget);
+    expect(find.text('Thử lại'), findsOneWidget);
+    expect(find.byType(RefreshIndicator), findsOneWidget);
+    expect(
+      tester
+          .widget<ListView>(find.byKey(const Key('progress-error-view')))
+          .physics,
+      isA<AlwaysScrollableScrollPhysics>(),
+    );
+    await tester.tap(find.text('Thử lại'));
+    await tester.pumpAndSettle();
+    expect(find.text('Phiên đăng nhập đã hết hạn.'), findsOneWidget);
+  });
+}
+
+class _MemoryProgressRepository implements ProgressRepository {
+  @override
+  Future<ProgressSummary> load() async => ProgressSummary(
+    sessions: 2,
+    sets: 6,
+    volumeKg: 2400.4,
+    latest: [
+      ProgressEntry(
+        exerciseSlug: 'leg-press',
+        exerciseName: 'Leg press',
+        loadKg: 40.125,
+        repetitions: 10,
+        completedAt: DateTime(2026, 8, 13),
+      ),
+    ],
+  );
+}
+
+class _CountingProgressRepository implements ProgressRepository {
+  int loads = 0;
+
+  @override
+  Future<ProgressSummary> load() async {
+    loads += 1;
+    return const ProgressSummary(sessions: 0, sets: 0, volumeKg: 0, latest: []);
+  }
+}
+
+class _EmptyProgressRepository implements ProgressRepository {
+  @override
+  Future<ProgressSummary> load() async =>
+      const ProgressSummary(sessions: 0, sets: 0, volumeKg: 0, latest: []);
+}
+
+class _FailingProgressRepository implements ProgressRepository {
+  @override
+  Future<ProgressSummary> load() async {
+    throw const ProgressException('Phiên đăng nhập đã hết hạn.');
+  }
 }
 
 class _MemoryPlannerRepository implements PlannerRepository {

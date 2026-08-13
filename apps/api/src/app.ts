@@ -52,10 +52,24 @@ interface WorkoutSessionStart {
   operationId: string;
 }
 
+interface ProgressSummary {
+  sessions: number;
+  sets: number;
+  volumeKg: number;
+  latest: Array<{
+    exerciseSlug: string;
+    exerciseName: string;
+    loadKg: number;
+    repetitions: number;
+    completedAt: string;
+  }>;
+}
+
 export interface AppDependencies {
   currentUser?: (headers: Headers) => Promise<CurrentUser | null>;
   workoutSets?: { insert: (value: WorkoutSetInsert) => Promise<boolean> };
   workoutSessions?: { start: (value: WorkoutSessionStart) => Promise<string | null> };
+  progress?: { summary: (userId: string) => Promise<ProgressSummary> };
   allowedOrigins?: string[];
   authHandler?: (request: Request) => Promise<Response>;
   workoutWriteAllowed?: (userId: string) => boolean | Promise<boolean>;
@@ -160,6 +174,13 @@ export function createApp(dependencies: AppDependencies = {}) {
     const user = await (dependencies.currentUser?.(context.req.raw.headers) ?? Promise.resolve(null));
     if (!user) return context.json({ error: "unauthorized" }, 401);
     return context.json({ data: user });
+  });
+
+  app.get("/api/progress", async (context) => {
+    const user = await (dependencies.currentUser?.(context.req.raw.headers) ?? Promise.resolve(null));
+    if (!user) return context.json({ error: "unauthorized" }, 401);
+    if (!dependencies.progress) return context.json({ error: "service_unavailable" }, 503);
+    return context.json({ data: await dependencies.progress.summary(user.id) });
   });
 
   app.post("/api/admin/exercises/import/preview", async (context) => {
