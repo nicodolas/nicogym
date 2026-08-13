@@ -159,6 +159,8 @@ class _TodayHeaderState extends State<TodayHeader> {
             tokenStore: authTokenStore,
           )
         : null;
+    final progressRepository =
+        progressApi ?? const UnavailableProgressRepository();
     try {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -174,7 +176,7 @@ class _TodayHeaderState extends State<TodayHeader> {
             },
             plannerRepository: plannerRepository,
             catalogRepository: catalogApi,
-            progressRepository: progressApi,
+            progressRepository: progressRepository,
             onOpenExercise: (exercise) => Navigator.of(memberContext).push(
               MaterialPageRoute<void>(
                 builder: (_) => WorkoutScreen(
@@ -210,7 +212,10 @@ class _TodayHeaderState extends State<TodayHeader> {
     );
     catalogApi.close();
     if (progressApi != null) {
-      await progressApi.whenIdle();
+      await progressApi.whenIdle().timeout(
+        const Duration(seconds: 16),
+        onTimeout: () {},
+      );
       progressApi.close();
     }
   }

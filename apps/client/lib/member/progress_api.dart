@@ -64,6 +64,17 @@ abstract interface class ProgressRepository {
   Future<ProgressSummary> load();
 }
 
+class UnavailableProgressRepository implements ProgressRepository {
+  const UnavailableProgressRepository();
+
+  @override
+  Future<ProgressSummary> load() => Future.error(
+    const ProgressException(
+      'Thiết bị này chưa hỗ trợ đồng bộ tiến độ an toàn.',
+    ),
+  );
+}
+
 class ProgressApi implements ProgressRepository {
   ProgressApi({
     required this.baseUrl,
