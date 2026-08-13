@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -109,6 +110,55 @@ void main() {
     expect(result.usedOfflineFallback, isTrue);
     repository.close();
   });
+
+  test(
+    'whenIdle includes the latest save queued during an active save',
+    () async {
+      final firstResponse = Completer<http.Response>();
+      final requests = <http.Request>[];
+      final repository = CachedPlannerRepository(
+        remote: PlannerApi(
+          baseUrl: Uri.parse('https://api.example.test'),
+          tokenStore: _TokenStore('session-token'),
+          client: MockClient((request) async {
+            requests.add(request);
+            if (requests.length == 1) return firstResponse.future;
+            return http.Response.bytes(
+              utf8.encode(jsonEncode({'data': jsonDecode(request.body)})),
+              200,
+            );
+          }),
+        ),
+        cache: _MemoryPlannerCache(),
+      );
+      const latest = PlannerState(
+        weeklySchedule: [
+          PlannedSession(day: 1, title: 'Ngực + Tay sau'),
+          PlannedSession(day: 3, title: 'Lưng + Tay trước'),
+          PlannedSession(day: 5, title: 'Chân + Mông'),
+        ],
+        recoveryHours: 72,
+        todayWorkout: 'Chân + Mông',
+        suggestionAccepted: false,
+      );
+
+      final firstSave = repository.save(PlannerState.defaults);
+      await Future<void>.delayed(Duration.zero);
+      final latestSave = repository.save(latest);
+      final idle = repository.whenIdle();
+      firstResponse.complete(
+        http.Response.bytes(
+          utf8.encode(jsonEncode({'data': PlannerState.defaults.toJson()})),
+          200,
+        ),
+      );
+
+      await Future.wait([firstSave, latestSave, idle]);
+      expect(requests, hasLength(2));
+      expect(jsonDecode(requests.last.body)['recoveryHours'], 72);
+      repository.close();
+    },
+  );
 }
 
 class _MemoryPlannerCache implements PlannerCache {

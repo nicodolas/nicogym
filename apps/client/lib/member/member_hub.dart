@@ -227,10 +227,11 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
   bool _dismissedSuggestion = false;
   List<PlannedSession> _weeklySchedule = PlannerState.defaults.weeklySchedule;
   bool _loading = false;
-  bool _saving = false;
-  bool _pendingSave = false;
+  int _activeSaves = 0;
   String? _syncError;
   bool _retryLoad = false;
+
+  bool get _saving => _activeSaves > 0;
 
   @override
   void initState() {
@@ -268,35 +269,29 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
 
   Future<void> _save() async {
     if (widget.repository == null) return;
-    if (_saving) {
-      _pendingSave = true;
-      return;
-    }
+    final snapshot = PlannerState(
+      weeklySchedule: _weeklySchedule,
+      recoveryHours: _recoveryHours.round(),
+      todayWorkout: _todayWorkout,
+      suggestionAccepted: _suggestionAccepted,
+    );
     setState(() {
-      _saving = true;
+      _activeSaves += 1;
       _syncError = null;
       _retryLoad = false;
     });
-    do {
-      _pendingSave = false;
-      final snapshot = PlannerState(
-        weeklySchedule: _weeklySchedule,
-        recoveryHours: _recoveryHours.round(),
-        todayWorkout: _todayWorkout,
-        suggestionAccepted: _suggestionAccepted,
-      );
-      try {
-        await widget.repository!.save(snapshot);
-        if (mounted) setState(() => _syncError = null);
-      } catch (_) {
-        if (mounted) {
-          setState(
-            () => _syncError = 'Đã lưu trên thiết bị. Chạm để đồng bộ lại.',
-          );
-        }
+    try {
+      await widget.repository!.save(snapshot);
+      if (mounted) setState(() => _syncError = null);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _syncError = 'Đã lưu trên thiết bị. Chạm để đồng bộ lại.',
+        );
       }
-    } while (_pendingSave);
-    if (mounted) setState(() => _saving = false);
+    } finally {
+      if (mounted) setState(() => _activeSaves -= 1);
+    }
   }
 
   @override

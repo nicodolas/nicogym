@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nicogym/member/member_hub.dart';
@@ -164,6 +166,38 @@ void main() {
     );
     expect(find.text('72 giờ trước khi tập lại cùng nhóm cơ'), findsOneWidget);
   });
+
+  testWidgets('submits the latest planner snapshot while a save is pending', (
+    tester,
+  ) async {
+    final repository = _DelayedPlannerRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemberHubScreen(
+          exerciseLoader: () async => const [chestExercise],
+          onOpenExercise: (_) {},
+          initialTab: 1,
+          plannerRepository: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.byType(Slider), 300);
+    final slider = tester.widget<Slider>(find.byType(Slider));
+    slider.onChanged!(60);
+    slider.onChangeEnd!(60);
+    slider.onChanged!(72);
+    slider.onChangeEnd!(72);
+    await tester.pump();
+
+    expect(repository.saved, hasLength(2));
+    expect(repository.saved.first.recoveryHours, 60);
+    expect(repository.saved.last.recoveryHours, 72);
+
+    repository.completeAll();
+    await tester.pumpAndSettle();
+  });
 }
 
 class _MemoryPlannerRepository implements PlannerRepository {
@@ -177,4 +211,27 @@ class _MemoryPlannerRepository implements PlannerRepository {
 
   @override
   Future<PlannerState> save(PlannerState state) async => saved = state;
+}
+
+class _DelayedPlannerRepository implements PlannerRepository {
+  final List<PlannerState> saved = [];
+  final List<Completer<PlannerState>> _saves = [];
+
+  @override
+  Future<PlannerLoadResult> load() async =>
+      const PlannerLoadResult(state: PlannerState.defaults);
+
+  @override
+  Future<PlannerState> save(PlannerState state) {
+    saved.add(state);
+    final completion = Completer<PlannerState>();
+    _saves.add(completion);
+    return completion.future;
+  }
+
+  void completeAll() {
+    for (var index = 0; index < _saves.length; index++) {
+      if (!_saves[index].isCompleted) _saves[index].complete(saved[index]);
+    }
+  }
 }
