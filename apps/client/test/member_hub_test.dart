@@ -226,6 +226,47 @@ void main() {
     expect(repository.saved?.weeklySchedule.first.title, 'Buổi toàn thân mới');
   });
 
+  testWidgets('rejects normalized duplicates from an older cached schedule', (
+    tester,
+  ) async {
+    final repository = _MemoryPlannerRepository(
+      const PlannerState(
+        weeklySchedule: [
+          PlannedSession(day: 1, title: 'Buổi A'),
+          PlannedSession(day: 3, title: ' Buổi B '),
+        ],
+        recoveryHours: 48,
+        todayWorkout: 'Buổi A',
+        suggestionAccepted: false,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemberHubScreen(
+          exerciseLoader: () async => const [chestExercise],
+          onOpenExercise: (_) {},
+          initialTab: 1,
+          plannerRepository: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('schedule-1')),
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const Key('schedule-1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'buổi b');
+    await tester.tap(find.text('Lưu'));
+    await tester.pump();
+
+    expect(find.text('Tên buổi tập đã tồn tại.'), findsOneWidget);
+    expect(repository.saved, isNull);
+  });
+
   testWidgets('submits the latest planner snapshot while a save is pending', (
     tester,
   ) async {
