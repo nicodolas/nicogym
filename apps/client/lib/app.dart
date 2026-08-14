@@ -154,9 +154,7 @@ List<Exercise> selectTodayExercises(
         return keywords.any(searchable.contains);
       })
       .toList(growable: false);
-  return (matching.isEmpty ? exercises : matching)
-      .take(limit)
-      .toList(growable: false);
+  return matching.take(limit).toList(growable: false);
 }
 
 class TodayScreen extends StatefulWidget {
@@ -187,6 +185,7 @@ class TodayScreen extends StatefulWidget {
 
 class _TodayScreenState extends State<TodayScreen> {
   PlannerState _plan = PlannerState.defaults;
+  bool _planLoading = true;
   int _refreshGeneration = 0;
 
   @override
@@ -206,6 +205,7 @@ class _TodayScreenState extends State<TodayScreen> {
 
   Future<void> _refreshPlan() async {
     final generation = ++_refreshGeneration;
+    if (mounted) setState(() => _planLoading = true);
     try {
       final token = await widget.memberTokenStore?.read();
       if (token == null || token.isEmpty) {
@@ -227,6 +227,10 @@ class _TodayScreenState extends State<TodayScreen> {
     } catch (_) {
       if (mounted && generation == _refreshGeneration) {
         setState(() => _plan = PlannerState.defaults);
+      }
+    } finally {
+      if (mounted && generation == _refreshGeneration) {
+        setState(() => _planLoading = false);
       }
     }
   }
@@ -330,16 +334,24 @@ class _TodayScreenState extends State<TodayScreen> {
                 foregroundColor: NicoGymColors.paper,
                 shape: const RoundedRectangleBorder(),
               ),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => _WorkoutLoaderScreen(
-                    loader: _loadTodayExercises,
-                    workoutRepository: widget.workoutRepository,
-                  ),
-                ),
+              onPressed: _planLoading
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => _WorkoutLoaderScreen(
+                          loader: _loadTodayExercises,
+                          workoutRepository: widget.workoutRepository,
+                        ),
+                      ),
+                    ),
+              icon: Icon(
+                _planLoading
+                    ? Icons.hourglass_top_rounded
+                    : Icons.play_arrow_rounded,
               ),
-              icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('Bắt đầu buổi tập'),
+              label: Text(
+                _planLoading ? 'Đang tải lịch tập' : 'Bắt đầu buổi tập',
+              ),
             ),
           ),
         ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nicogym/app.dart';
@@ -47,6 +49,17 @@ void main() {
 
   Future<List<Exercise>> loadTestExercises() async => testExercises;
 
+  test('does not substitute unrelated exercises for an unknown plan', () {
+    expect(
+      selectTodayExercises(
+        testExercises,
+        workoutTitle: 'Bơi phục hồi',
+        limit: 4,
+      ),
+      isEmpty,
+    );
+  });
+
   void useMobileViewport(WidgetTester tester) {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -56,7 +69,13 @@ void main() {
 
   testWidgets('shows today workout and recovery status', (tester) async {
     useMobileViewport(tester);
-    await tester.pumpWidget(NicoGymApp(exerciseLoader: loadTestExercises));
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        memberTokenStore: _MemoryTokenStore(null),
+      ),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('HÔM NAY'), findsOneWidget);
     expect(find.text('CHÂN + MÔNG'), findsOneWidget);
@@ -90,6 +109,34 @@ void main() {
     expect(find.text('3 bài · 9 hiệp · ưu tiên kỹ thuật'), findsOneWidget);
     expect(find.text('Romanian deadlift'), findsOneWidget);
     expect(find.text('Leg press'), findsNothing);
+  });
+
+  testWidgets('prevents workout start until the member plan is loaded', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    final repository = _CompletingPlannerRepository();
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        memberTokenStore: _MemoryTokenStore('member-token'),
+        plannerRepository: repository,
+      ),
+    );
+    await tester.pump();
+
+    final loadingButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Đang tải lịch tập'),
+    );
+    expect(loadingButton.onPressed, isNull);
+
+    repository.complete(PlannerState.defaults);
+    await tester.pumpAndSettle();
+
+    final readyButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Bắt đầu buổi tập'),
+    );
+    expect(readyButton.onPressed, isNotNull);
   });
 
   testWidgets('does not expose a cached member plan after sign-out', (
@@ -151,9 +198,11 @@ void main() {
     await tester.pumpWidget(
       NicoGymApp(
         exerciseLoader: loadTestExercises,
+        memberTokenStore: _MemoryTokenStore(null),
         workoutRepository: workoutRepository,
       ),
     );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Bắt đầu buổi tập'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
@@ -195,9 +244,11 @@ void main() {
     await tester.pumpWidget(
       NicoGymApp(
         exerciseLoader: loadTestExercises,
+        memberTokenStore: _MemoryTokenStore(null),
         workoutRepository: workoutRepository,
       ),
     );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Bắt đầu buổi tập'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
@@ -263,9 +314,11 @@ void main() {
     await tester.pumpWidget(
       NicoGymApp(
         exerciseLoader: loadTestExercises,
+        memberTokenStore: _MemoryTokenStore(null),
         workoutRepository: workoutRepository,
       ),
     );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Bắt đầu buổi tập'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
@@ -304,9 +357,11 @@ void main() {
     await tester.pumpWidget(
       NicoGymApp(
         exerciseLoader: loadTestExercises,
+        memberTokenStore: _MemoryTokenStore(null),
         workoutRepository: workoutRepository,
       ),
     );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Bắt đầu buổi tập'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
@@ -383,7 +438,13 @@ void main() {
       return testExercises;
     }
 
-    await tester.pumpWidget(NicoGymApp(exerciseLoader: flakyLoader));
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: flakyLoader,
+        memberTokenStore: _MemoryTokenStore(null),
+      ),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Bắt đầu buổi tập'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
@@ -424,6 +485,20 @@ class _MemoryPlannerRepository implements PlannerRepository {
     loads += 1;
     return PlannerLoadResult(state: state);
   }
+
+  @override
+  Future<PlannerState> save(PlannerState state) async => state;
+}
+
+class _CompletingPlannerRepository implements PlannerRepository {
+  final _load = Completer<PlannerLoadResult>();
+
+  void complete(PlannerState state) {
+    _load.complete(PlannerLoadResult(state: state));
+  }
+
+  @override
+  Future<PlannerLoadResult> load() => _load.future;
 
   @override
   Future<PlannerState> save(PlannerState state) async => state;
