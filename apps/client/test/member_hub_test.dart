@@ -218,6 +218,8 @@ void main() {
     expect(find.text('Tên buổi tập đã tồn tại.'), findsOneWidget);
 
     await tester.enterText(find.byType(TextFormField), 'Buổi toàn thân mới');
+    await tester.pump();
+    expect(find.text('Tên buổi tập đã tồn tại.'), findsNothing);
     await tester.tap(find.text('Lưu'));
     await tester.pumpAndSettle();
 
