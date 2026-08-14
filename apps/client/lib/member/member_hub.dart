@@ -530,7 +530,10 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
                     labelText: 'Tên buổi tập',
                     errorText: titleError,
                   ),
-                  onChanged: (value) => title = value,
+                  onChanged: (value) => setDialogState(() {
+                    title = value;
+                    titleError = null;
+                  }),
                 ),
                 DropdownButtonFormField<int>(
                   initialValue: selectedDay,
@@ -560,7 +563,8 @@ class _SchedulePlannerState extends State<_SchedulePlanner> {
                 final duplicate = _weeklySchedule.any(
                   (item) =>
                       item != session &&
-                      item.title.toLowerCase() == normalizedTitle.toLowerCase(),
+                      item.title.trim().toLowerCase() ==
+                          normalizedTitle.toLowerCase(),
                 );
                 if (normalizedTitle.isEmpty || duplicate) {
                   setDialogState(
