@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nicogym/app.dart';
+import 'package:nicogym/auth/auth_api.dart';
 import 'package:nicogym/features/workout/workout_screen.dart';
+import 'package:nicogym/member/planner_api.dart';
 import 'package:nicogym/workouts/exercise.dart';
 import 'package:nicogym/workouts/workout_api.dart';
 
@@ -9,6 +11,7 @@ void main() {
   const testExercises = [
     Exercise(
       id: 'leg-press',
+      category: 'Chân & Mông',
       name: 'Leg press',
       prescription: '3 × 8–10',
       primaryMuscles: ['Đùi trước', 'Mông'],
@@ -25,6 +28,7 @@ void main() {
     ),
     Exercise(
       id: 'romanian-deadlift',
+      category: 'Lưng',
       name: 'Romanian deadlift',
       prescription: '3 × 8',
       primaryMuscles: ['Đùi sau', 'Mông'],
@@ -58,6 +62,60 @@ void main() {
     expect(find.text('CHÂN + MÔNG'), findsOneWidget);
     expect(find.text('3/5 nhóm cơ sẵn sàng'), findsOneWidget);
     expect(find.text('Bắt đầu buổi tập'), findsOneWidget);
+  });
+
+  testWidgets('renders the persisted planner on the main Today screen', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        memberTokenStore: _MemoryTokenStore('member-token'),
+        plannerRepository: _MemoryPlannerRepository(
+          const PlannerState(
+            weeklySchedule: [PlannedSession(day: 2, title: 'Lưng')],
+            recoveryHours: 48,
+            todayWorkout: 'Lưng',
+            suggestionAccepted: false,
+            sessionMinutes: 30,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('LƯNG'), findsOneWidget);
+    expect(find.text('30 PHÚT'), findsOneWidget);
+    expect(find.text('3 bài · 9 hiệp · ưu tiên kỹ thuật'), findsOneWidget);
+    expect(find.text('Romanian deadlift'), findsOneWidget);
+    expect(find.text('Leg press'), findsNothing);
+  });
+
+  testWidgets('does not expose a cached member plan after sign-out', (
+    tester,
+  ) async {
+    useMobileViewport(tester);
+    final repository = _MemoryPlannerRepository(
+      const PlannerState(
+        weeklySchedule: [PlannedSession(day: 2, title: 'Vai + Core')],
+        recoveryHours: 48,
+        todayWorkout: 'Vai + Core',
+        suggestionAccepted: false,
+      ),
+    );
+    await tester.pumpWidget(
+      NicoGymApp(
+        exerciseLoader: loadTestExercises,
+        memberTokenStore: _MemoryTokenStore(null),
+        plannerRepository: repository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('CHÂN + MÔNG'), findsOneWidget);
+    expect(find.text('VAI + CORE'), findsNothing);
+    expect(repository.loads, 0);
   });
 
   testWidgets('shows only the compact base app version', (tester) async {
@@ -343,6 +401,37 @@ void main() {
     expect(find.text('Giữ lịch chân'), findsOneWidget);
     expect(find.text('Xác nhận đổi'), findsOneWidget);
   });
+}
+
+class _MemoryPlannerRepository implements PlannerRepository {
+  _MemoryPlannerRepository(this.state);
+
+  final PlannerState? state;
+  int loads = 0;
+
+  @override
+  Future<PlannerLoadResult> load() async {
+    loads += 1;
+    return PlannerLoadResult(state: state);
+  }
+
+  @override
+  Future<PlannerState> save(PlannerState state) async => state;
+}
+
+class _MemoryTokenStore implements TokenStore {
+  _MemoryTokenStore(this.token);
+
+  String? token;
+
+  @override
+  Future<void> clear() async => token = null;
+
+  @override
+  Future<String?> read() async => token;
+
+  @override
+  Future<void> write(String token) async => this.token = token;
 }
 
 int _timerSeconds(WidgetTester tester) {

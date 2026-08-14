@@ -21,6 +21,7 @@ class TodayHeader extends StatefulWidget {
     required this.exerciseLoader,
     required this.tokenStore,
     required this.workoutRepository,
+    this.onMemberDataChanged,
   });
 
   final String apkDownloadUrl;
@@ -28,6 +29,7 @@ class TodayHeader extends StatefulWidget {
   final Future<List<Exercise>> Function() exerciseLoader;
   final TokenStore? tokenStore;
   final WorkoutRepository workoutRepository;
+  final Future<void> Function()? onMemberDataChanged;
 
   @override
   State<TodayHeader> createState() => _TodayHeaderState();
@@ -192,6 +194,8 @@ class _TodayHeaderState extends State<TodayHeader> {
       );
       unawaited(_memberCleanup);
       unawaited(_refreshAuthentication());
+      final refresh = widget.onMemberDataChanged?.call();
+      if (refresh != null) unawaited(refresh);
     }
   }
 
@@ -230,6 +234,7 @@ class _TodayHeaderState extends State<TodayHeader> {
         ),
       );
       await _refreshAuthentication();
+      await widget.onMemberDataChanged?.call();
       return;
     }
 
@@ -244,6 +249,7 @@ class _TodayHeaderState extends State<TodayHeader> {
       ),
     );
     await _refreshAuthentication();
+    await widget.onMemberDataChanged?.call();
   }
 
   Future<void> _downloadApk(BuildContext context) async {

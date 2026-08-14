@@ -3,6 +3,7 @@ import 'package:nicogym/app/app_theme.dart';
 import 'package:nicogym/auth/auth_api.dart';
 import 'package:nicogym/features/today/today_header.dart';
 import 'package:nicogym/features/workout/workout_screen.dart';
+import 'package:nicogym/member/planner_api.dart';
 import 'package:nicogym/workouts/exercise.dart';
 import 'package:nicogym/workouts/workout_api.dart';
 
@@ -22,6 +23,7 @@ class NicoGymApp extends StatefulWidget {
     this.exerciseLoader = ExerciseLibrary.load,
     this.memberTokenStore,
     this.workoutRepository,
+    this.plannerRepository,
   });
 
   final bool showRecoverySuggestion;
@@ -31,6 +33,7 @@ class NicoGymApp extends StatefulWidget {
   final Future<List<Exercise>> Function() exerciseLoader;
   final TokenStore? memberTokenStore;
   final WorkoutRepository? workoutRepository;
+  final PlannerRepository? plannerRepository;
 
   @override
   State<NicoGymApp> createState() => _NicoGymAppState();
@@ -40,6 +43,7 @@ class _NicoGymAppState extends State<NicoGymApp> {
   late TokenStore _tokenStore;
   late WorkoutRepository _workoutRepository;
   WorkoutApi? _ownedWorkoutApi;
+  CachedPlannerRepository? _ownedPlannerRepository;
   final List<WorkoutApi> _retiredWorkoutApis = [];
 
   @override
@@ -53,10 +57,12 @@ class _NicoGymAppState extends State<NicoGymApp> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.memberTokenStore != widget.memberTokenStore ||
         oldWidget.workoutRepository != widget.workoutRepository ||
+        oldWidget.plannerRepository != widget.plannerRepository ||
         oldWidget.apiBaseUrl != widget.apiBaseUrl) {
       if (_ownedWorkoutApi case final api?) {
         _retiredWorkoutApis.add(api);
       }
+      _ownedPlannerRepository?.close();
       _configureDependencies();
     }
   }
@@ -70,11 +76,21 @@ class _NicoGymAppState extends State<NicoGymApp> {
           )
         : null;
     _workoutRepository = widget.workoutRepository ?? _ownedWorkoutApi!;
+    _ownedPlannerRepository = widget.plannerRepository == null
+        ? CachedPlannerRepository(
+            remote: PlannerApi(
+              baseUrl: Uri.parse(widget.apiBaseUrl),
+              tokenStore: _tokenStore,
+            ),
+            cache: SecurePlannerCache(),
+          )
+        : null;
   }
 
   @override
   void dispose() {
     _ownedWorkoutApi?.close();
+    _ownedPlannerRepository?.close();
     for (final api in _retiredWorkoutApis) {
       api.close();
     }
@@ -95,12 +111,51 @@ class _NicoGymAppState extends State<NicoGymApp> {
         exerciseLoader: widget.exerciseLoader,
         memberTokenStore: _tokenStore,
         workoutRepository: _workoutRepository,
+        plannerRepository: widget.plannerRepository ?? _ownedPlannerRepository!,
       ),
     );
   }
 }
 
-class TodayScreen extends StatelessWidget {
+List<Exercise> selectTodayExercises(
+  List<Exercise> exercises, {
+  required String workoutTitle,
+  required int limit,
+}) {
+  if (exercises.isEmpty || limit <= 0) return const [];
+  final title = workoutTitle.toLowerCase();
+  final keywords = <String>{
+    if (title.contains('chân') || title.contains('mông')) ...[
+      'chân',
+      'mông',
+      'đùi',
+      'bắp chân',
+    ],
+    if (title.contains('ngực')) 'ngực',
+    if (title.contains('lưng')) 'lưng',
+    if (title.contains('vai')) 'vai',
+    if (title.contains('core')) ...['core', 'bụng'],
+    if (title.contains('tay')) ...['tay', 'biceps', 'triceps'],
+    if (title.contains('thân trên')) ...['ngực', 'lưng', 'vai', 'tay'],
+  };
+  if (title.contains('toàn thân')) {
+    return exercises.take(limit).toList(growable: false);
+  }
+  final matching = exercises
+      .where((exercise) {
+        final searchable = [
+          exercise.category,
+          ...exercise.primaryMuscles,
+        ].join(' ').toLowerCase();
+        return keywords.any(searchable.contains);
+      })
+      .toList(growable: false);
+  return (matching.isEmpty ? exercises : matching)
+      .take(limit)
+      .toList(growable: false);
+}
+
+class TodayScreen extends StatefulWidget {
   const TodayScreen({
     super.key,
     required this.showRecoverySuggestion,
@@ -110,6 +165,7 @@ class TodayScreen extends StatelessWidget {
     required this.exerciseLoader,
     required this.memberTokenStore,
     required this.workoutRepository,
+    required this.plannerRepository,
   });
 
   final bool showRecoverySuggestion;
@@ -119,6 +175,59 @@ class TodayScreen extends StatelessWidget {
   final Future<List<Exercise>> Function() exerciseLoader;
   final TokenStore? memberTokenStore;
   final WorkoutRepository workoutRepository;
+  final PlannerRepository plannerRepository;
+
+  @override
+  State<TodayScreen> createState() => _TodayScreenState();
+}
+
+class _TodayScreenState extends State<TodayScreen> {
+  PlannerState _plan = PlannerState.defaults;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshPlan();
+  }
+
+  @override
+  void didUpdateWidget(covariant TodayScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.plannerRepository != widget.plannerRepository) {
+      _refreshPlan();
+    }
+  }
+
+  Future<void> _refreshPlan() async {
+    try {
+      final token = await widget.memberTokenStore?.read();
+      if (token == null || token.isEmpty) {
+        if (mounted) setState(() => _plan = PlannerState.defaults);
+        return;
+      }
+      final result = await widget.plannerRepository.load();
+      if (mounted && result.state != null) {
+        setState(() => _plan = result.state!);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _plan = PlannerState.defaults);
+    }
+  }
+
+  Future<List<Exercise>> _loadTodayExercises() async {
+    final exercises = await widget.exerciseLoader();
+    return selectTodayExercises(
+      exercises,
+      workoutTitle: _plan.todayWorkout,
+      limit: _exerciseCount,
+    );
+  }
+
+  int get _exerciseCount => switch (_plan.sessionMinutes) {
+    30 => 3,
+    60 => 5,
+    _ => 4,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -140,32 +249,41 @@ class TodayScreen extends StatelessWidget {
                       sliver: SliverList.list(
                         children: [
                           TodayHeader(
-                            key: ObjectKey(memberTokenStore),
-                            apkDownloadUrl: apkDownloadUrl,
-                            apiBaseUrl: apiBaseUrl,
-                            exerciseLoader: exerciseLoader,
-                            tokenStore: memberTokenStore,
-                            workoutRepository: workoutRepository,
+                            key: ObjectKey(widget.memberTokenStore),
+                            apkDownloadUrl: widget.apkDownloadUrl,
+                            apiBaseUrl: widget.apiBaseUrl,
+                            exerciseLoader: widget.exerciseLoader,
+                            tokenStore: widget.memberTokenStore,
+                            workoutRepository: widget.workoutRepository,
+                            onMemberDataChanged: _refreshPlan,
                           ),
                           const SizedBox(height: 28),
-                          _TodayHero(compact: constraints.maxWidth < 760),
+                          _TodayHero(
+                            compact: constraints.maxWidth < 760,
+                            title: _plan.todayWorkout,
+                            minutes: _plan.sessionMinutes,
+                            exerciseCount: _exerciseCount,
+                          ),
                           const SizedBox(height: 18),
                           const _ReadinessStrip(),
                           const SizedBox(height: 28),
-                          if (showRecoverySuggestion) ...[
+                          if (widget.showRecoverySuggestion) ...[
                             _SuggestionNotice(
                               onOpen: () => _showSuggestion(context),
                             ),
                             const SizedBox(height: 20),
                           ],
                           _WorkoutOverview(
-                            loader: exerciseLoader,
-                            workoutRepository: workoutRepository,
+                            loader: _loadTodayExercises,
+                            workoutRepository: widget.workoutRepository,
+                            totalSets: _exerciseCount * 3,
+                            reloadKey:
+                                '${_plan.todayWorkout}:${_plan.sessionMinutes}',
                           ),
                           const SizedBox(height: 28),
                           Center(
                             child: Text(
-                              'v$baseAppVersion',
+                              'v${widget.baseAppVersion}',
                               style: const TextStyle(
                                 color: NicoGymColors.muted,
                                 fontSize: 12,
@@ -198,8 +316,8 @@ class TodayScreen extends StatelessWidget {
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => _WorkoutLoaderScreen(
-                    loader: exerciseLoader,
-                    workoutRepository: workoutRepository,
+                    loader: _loadTodayExercises,
+                    workoutRepository: widget.workoutRepository,
                   ),
                 ),
               ),
@@ -311,9 +429,17 @@ class _WorkoutLoaderScreenState extends State<_WorkoutLoaderScreen> {
 }
 
 class _TodayHero extends StatelessWidget {
-  const _TodayHero({required this.compact});
+  const _TodayHero({
+    required this.compact,
+    required this.title,
+    required this.minutes,
+    required this.exerciseCount,
+  });
 
   final bool compact;
+  final String title;
+  final int minutes;
+  final int exerciseCount;
 
   @override
   Widget build(BuildContext context) {
@@ -339,15 +465,15 @@ class _TodayHero extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              const Text(
-                '45 PHÚT',
+              Text(
+                '$minutes PHÚT',
                 style: TextStyle(color: Color(0xFFBFC3B8), fontSize: 12),
               ),
             ],
           ),
           const SizedBox(height: 20),
           Text(
-            'CHÂN + MÔNG',
+            title.toUpperCase(),
             maxLines: 1,
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
               color: NicoGymColors.paper,
@@ -355,8 +481,8 @@ class _TodayHero extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            '4 bài · 12 hiệp · ưu tiên kỹ thuật',
+          Text(
+            '$exerciseCount bài · ${exerciseCount * 3} hiệp · ưu tiên kỹ thuật',
             style: TextStyle(color: Color(0xFFBFC3B8)),
           ),
         ],
@@ -493,17 +619,36 @@ class _WorkoutOverview extends StatefulWidget {
   const _WorkoutOverview({
     required this.loader,
     required this.workoutRepository,
+    required this.totalSets,
+    required this.reloadKey,
   });
 
   final Future<List<Exercise>> Function() loader;
   final WorkoutRepository workoutRepository;
+  final int totalSets;
+  final String reloadKey;
 
   @override
   State<_WorkoutOverview> createState() => _WorkoutOverviewState();
 }
 
 class _WorkoutOverviewState extends State<_WorkoutOverview> {
-  late final Future<List<Exercise>> _exercises = widget.loader();
+  late Future<List<Exercise>> _exercises;
+
+  @override
+  void initState() {
+    super.initState();
+    _exercises = widget.loader();
+  }
+
+  @override
+  void didUpdateWidget(covariant _WorkoutOverview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.loader != widget.loader ||
+        oldWidget.reloadKey != widget.reloadKey) {
+      _exercises = widget.loader();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -514,7 +659,10 @@ class _WorkoutOverviewState extends State<_WorkoutOverview> {
           children: [
             Text('BÀI TẬP', style: Theme.of(context).textTheme.titleLarge),
             const Spacer(),
-            const Text('12 HIỆP', style: TextStyle(color: NicoGymColors.muted)),
+            Text(
+              '${widget.totalSets} HIỆP',
+              style: const TextStyle(color: NicoGymColors.muted),
+            ),
           ],
         ),
         const SizedBox(height: 8),
