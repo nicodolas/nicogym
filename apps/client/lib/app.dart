@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:nicogym/app/app_theme.dart';
 import 'package:nicogym/auth/auth_api.dart';
@@ -62,7 +64,9 @@ class _NicoGymAppState extends State<NicoGymApp> {
       if (_ownedWorkoutApi case final api?) {
         _retiredWorkoutApis.add(api);
       }
-      _ownedPlannerRepository?.close();
+      if (_ownedPlannerRepository case final repository?) {
+        unawaited(repository.whenIdle().whenComplete(repository.close));
+      }
       _configureDependencies();
     }
   }
@@ -183,6 +187,7 @@ class TodayScreen extends StatefulWidget {
 
 class _TodayScreenState extends State<TodayScreen> {
   PlannerState _plan = PlannerState.defaults;
+  int _refreshGeneration = 0;
 
   @override
   void initState() {
@@ -193,24 +198,36 @@ class _TodayScreenState extends State<TodayScreen> {
   @override
   void didUpdateWidget(covariant TodayScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.plannerRepository != widget.plannerRepository) {
+    if (oldWidget.plannerRepository != widget.plannerRepository ||
+        oldWidget.memberTokenStore != widget.memberTokenStore) {
       _refreshPlan();
     }
   }
 
   Future<void> _refreshPlan() async {
+    final generation = ++_refreshGeneration;
     try {
       final token = await widget.memberTokenStore?.read();
       if (token == null || token.isEmpty) {
-        if (mounted) setState(() => _plan = PlannerState.defaults);
+        if (mounted && generation == _refreshGeneration) {
+          setState(() => _plan = PlannerState.defaults);
+        }
         return;
       }
       final result = await widget.plannerRepository.load();
-      if (mounted && result.state != null) {
-        setState(() => _plan = result.state!);
+      final currentToken = await widget.memberTokenStore?.read();
+      if (!mounted || generation != _refreshGeneration) return;
+      if (currentToken == null ||
+          currentToken.isEmpty ||
+          currentToken != token) {
+        setState(() => _plan = PlannerState.defaults);
+        return;
       }
+      setState(() => _plan = result.state ?? PlannerState.defaults);
     } catch (_) {
-      if (mounted) setState(() => _plan = PlannerState.defaults);
+      if (mounted && generation == _refreshGeneration) {
+        setState(() => _plan = PlannerState.defaults);
+      }
     }
   }
 

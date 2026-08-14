@@ -96,6 +96,7 @@ void main() {
     tester,
   ) async {
     useMobileViewport(tester);
+    final tokenStore = _MemoryTokenStore('member-token');
     final repository = _MemoryPlannerRepository(
       const PlannerState(
         weeklySchedule: [PlannedSession(day: 2, title: 'Vai + Core')],
@@ -107,15 +108,24 @@ void main() {
     await tester.pumpWidget(
       NicoGymApp(
         exerciseLoader: loadTestExercises,
-        memberTokenStore: _MemoryTokenStore(null),
+        memberTokenStore: tokenStore,
         plannerRepository: repository,
       ),
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('VAI + CORE'), findsOneWidget);
+    expect(repository.loads, 1);
+
+    await tester.tap(find.byTooltip('Đã đăng nhập'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Đăng xuất'));
+    await tester.pumpAndSettle();
+
+    expect(tokenStore.token, isNull);
     expect(find.text('CHÂN + MÔNG'), findsOneWidget);
     expect(find.text('VAI + CORE'), findsNothing);
-    expect(repository.loads, 0);
+    expect(repository.loads, 1);
   });
 
   testWidgets('shows only the compact base app version', (tester) async {

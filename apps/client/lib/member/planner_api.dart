@@ -183,7 +183,10 @@ class CachedPlannerRepository implements PlannerRepository {
           final synced = await remote.save(cached!.state);
           await cache.write(synced, dirty: false);
           return PlannerLoadResult(state: synced);
-        } catch (_) {
+        } catch (error) {
+          if (error is AuthException && !await _hasAuthenticatedSession()) {
+            rethrow;
+          }
           return PlannerLoadResult(
             state: cached!.state,
             usedOfflineFallback: true,
@@ -194,7 +197,10 @@ class CachedPlannerRepository implements PlannerRepository {
       final state = remoteResult.state;
       if (state != null) await cache.write(state, dirty: false);
       return PlannerLoadResult(state: state ?? cached?.state);
-    } catch (_) {
+    } catch (error) {
+      if (error is AuthException && !await _hasAuthenticatedSession()) {
+        rethrow;
+      }
       final cached = await cache.read();
       if (cached != null) {
         return PlannerLoadResult(
@@ -206,6 +212,11 @@ class CachedPlannerRepository implements PlannerRepository {
     } finally {
       _endOperation();
     }
+  }
+
+  Future<bool> _hasAuthenticatedSession() async {
+    final token = await remote.tokenStore.read();
+    return token != null && token.isNotEmpty;
   }
 
   @override

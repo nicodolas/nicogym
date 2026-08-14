@@ -192,10 +192,9 @@ class _TodayHeaderState extends State<TodayHeader> {
         catalogApi,
         progressApi,
       );
-      unawaited(_memberCleanup);
-      unawaited(_refreshAuthentication());
-      final refresh = widget.onMemberDataChanged?.call();
-      if (refresh != null) unawaited(refresh);
+      await _memberCleanup;
+      await _refreshAuthentication();
+      await widget.onMemberDataChanged?.call();
     }
   }
 

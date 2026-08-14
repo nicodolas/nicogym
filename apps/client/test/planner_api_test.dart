@@ -113,6 +113,27 @@ void main() {
     repository.close();
   });
 
+  test('does not expose a dirty cached plan after session expiry', () async {
+    final tokenStore = _TokenStore('expired-token');
+    final cache = _MemoryPlannerCache()
+      ..entry = const CachedPlannerState(
+        state: PlannerState.defaults,
+        dirty: true,
+      );
+    final repository = CachedPlannerRepository(
+      remote: PlannerApi(
+        baseUrl: Uri.parse('https://api.example.test'),
+        tokenStore: tokenStore,
+        client: MockClient((_) async => http.Response('unauthorized', 401)),
+      ),
+      cache: cache,
+    );
+
+    await expectLater(repository.load(), throwsA(isA<AuthException>()));
+    expect(tokenStore.token, isNull);
+    repository.close();
+  });
+
   test(
     'whenIdle includes the latest save queued during an active save',
     () async {
