@@ -60,6 +60,17 @@ void main() {
     );
   });
 
+  test('maps lower-body plans to lower-body exercises', () {
+    expect(
+      selectTodayExercises(
+        testExercises,
+        workoutTitle: 'Thân dưới A',
+        limit: 4,
+      ).map((exercise) => exercise.id),
+      ['leg-press', 'romanian-deadlift'],
+    );
+  });
+
   void useMobileViewport(WidgetTester tester) {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;

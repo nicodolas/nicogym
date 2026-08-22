@@ -116,8 +116,12 @@ class PlannerLoadResult {
 }
 
 abstract interface class PlannerCache {
-  Future<CachedPlannerState?> read();
-  Future<void> write(PlannerState state, {required bool dirty});
+  Future<CachedPlannerState?> read({required String sessionToken});
+  Future<void> write(
+    PlannerState state, {
+    required String sessionToken,
+    required bool dirty,
+  });
 }
 
 class CachedPlannerState {
@@ -130,11 +134,11 @@ class SecurePlannerCache implements PlannerCache {
   SecurePlannerCache({FlutterSecureStorage? storage})
     : _storage = storage ?? const FlutterSecureStorage();
 
-  static const _key = 'planner_state_v1';
+  static const _key = 'planner_state_v2';
   final FlutterSecureStorage _storage;
 
   @override
-  Future<CachedPlannerState?> read() async {
+  Future<CachedPlannerState?> read({required String sessionToken}) async {
     final value = await _storage.read(key: _key);
     if (value == null) return null;
     try {
@@ -142,9 +146,13 @@ class SecurePlannerCache implements PlannerCache {
       if (decoded is! Map<String, dynamic>) throw const FormatException();
       final state = decoded['state'];
       final dirty = decoded['dirty'];
-      if (state is! Map<String, dynamic> || dirty is! bool) {
+      final cachedSessionToken = decoded['sessionToken'];
+      if (state is! Map<String, dynamic> ||
+          dirty is! bool ||
+          cachedSessionToken is! String) {
         throw const FormatException();
       }
+      if (cachedSessionToken != sessionToken) return null;
       return CachedPlannerState(
         state: PlannerState.fromJson(state),
         dirty: dirty,
@@ -156,10 +164,18 @@ class SecurePlannerCache implements PlannerCache {
   }
 
   @override
-  Future<void> write(PlannerState state, {required bool dirty}) async {
+  Future<void> write(
+    PlannerState state, {
+    required String sessionToken,
+    required bool dirty,
+  }) async {
     await _storage.write(
       key: _key,
-      value: jsonEncode({'dirty': dirty, 'state': state.toJson()}),
+      value: jsonEncode({
+        'dirty': dirty,
+        'sessionToken': sessionToken,
+        'state': state.toJson(),
+      }),
     );
   }
 }
@@ -176,32 +192,40 @@ class CachedPlannerRepository implements PlannerRepository {
   @override
   Future<PlannerLoadResult> load() async {
     _beginOperation();
+    String? sessionToken;
     try {
-      final cached = await cache.read();
+      sessionToken = await _requireSessionToken();
+      final cached = await cache.read(sessionToken: sessionToken);
       if (cached?.dirty ?? false) {
         try {
-          final synced = await remote.save(cached!.state);
-          await cache.write(synced, dirty: false);
+          final synced = await remote.save(
+            cached!.state,
+            sessionToken: sessionToken,
+          );
+          await _ensureSameSession(sessionToken);
+          await cache.write(synced, sessionToken: sessionToken, dirty: false);
           return PlannerLoadResult(state: synced);
-        } catch (error) {
-          if (error is AuthException && !await _hasAuthenticatedSession()) {
-            rethrow;
-          }
+        } catch (_) {
+          await _ensureSameSession(sessionToken);
           return PlannerLoadResult(
             state: cached!.state,
             usedOfflineFallback: true,
           );
         }
       }
-      final remoteResult = await remote.load();
+      final remoteResult = await remote.load(sessionToken: sessionToken);
+      await _ensureSameSession(sessionToken);
       final state = remoteResult.state;
-      if (state != null) await cache.write(state, dirty: false);
-      return PlannerLoadResult(state: state ?? cached?.state);
-    } catch (error) {
-      if (error is AuthException && !await _hasAuthenticatedSession()) {
+      if (state != null) {
+        await cache.write(state, sessionToken: sessionToken, dirty: false);
+      }
+      return PlannerLoadResult(state: state);
+    } catch (_) {
+      if (sessionToken == null ||
+          await remote.tokenStore.read() != sessionToken) {
         rethrow;
       }
-      final cached = await cache.read();
+      final cached = await cache.read(sessionToken: sessionToken);
       if (cached != null) {
         return PlannerLoadResult(
           state: cached.state,
@@ -214,9 +238,18 @@ class CachedPlannerRepository implements PlannerRepository {
     }
   }
 
-  Future<bool> _hasAuthenticatedSession() async {
+  Future<String> _requireSessionToken() async {
     final token = await remote.tokenStore.read();
-    return token != null && token.isNotEmpty;
+    if (token == null || token.isEmpty) {
+      throw const AuthException('Phiên đăng nhập đã hết hạn.');
+    }
+    return token;
+  }
+
+  Future<void> _ensureSameSession(String sessionToken) async {
+    if (await remote.tokenStore.read() != sessionToken) {
+      throw const AuthException('Phiên đăng nhập đã thay đổi.');
+    }
   }
 
   @override
@@ -229,9 +262,11 @@ class CachedPlannerRepository implements PlannerRepository {
   Future<PlannerState> _persistSave(PlannerState state) async {
     _beginOperation();
     try {
-      await cache.write(state, dirty: true);
-      final synced = await remote.save(state);
-      await cache.write(synced, dirty: false);
+      final sessionToken = await _requireSessionToken();
+      await cache.write(state, sessionToken: sessionToken, dirty: true);
+      final synced = await remote.save(state, sessionToken: sessionToken);
+      await _ensureSameSession(sessionToken);
+      await cache.write(synced, sessionToken: sessionToken, dirty: false);
       return synced;
     } finally {
       _endOperation();
@@ -272,11 +307,14 @@ class PlannerApi implements PlannerRepository {
   static const _timeout = Duration(seconds: 12);
 
   @override
-  Future<PlannerLoadResult> load() async {
+  Future<PlannerLoadResult> load({String? sessionToken}) async {
     final http.Response response;
     try {
       response = await _client
-          .get(baseUrl.resolve('/api/planner'), headers: await _headers())
+          .get(
+            baseUrl.resolve('/api/planner'),
+            headers: await _headers(sessionToken: sessionToken),
+          )
           .timeout(_timeout);
     } on TimeoutException {
       throw const AuthException('Kết nối đồng bộ quá chậm.');
@@ -293,13 +331,13 @@ class PlannerApi implements PlannerRepository {
   }
 
   @override
-  Future<PlannerState> save(PlannerState state) async {
+  Future<PlannerState> save(PlannerState state, {String? sessionToken}) async {
     final http.Response response;
     try {
       response = await _client
           .put(
             baseUrl.resolve('/api/planner'),
-            headers: await _headers(json: true),
+            headers: await _headers(json: true, sessionToken: sessionToken),
             body: jsonEncode(state.toJson()),
           )
           .timeout(_timeout);
@@ -316,8 +354,11 @@ class PlannerApi implements PlannerRepository {
     }
   }
 
-  Future<Map<String, String>> _headers({bool json = false}) async {
-    final token = await tokenStore.read();
+  Future<Map<String, String>> _headers({
+    bool json = false,
+    String? sessionToken,
+  }) async {
+    final token = sessionToken ?? await tokenStore.read();
     if (token == null || token.isEmpty) {
       throw const AuthException('Phiên đăng nhập đã hết hạn.');
     }

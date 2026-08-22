@@ -135,6 +135,33 @@ void main() {
   });
 
   test(
+    'does not expose a dirty cached plan after the account changes',
+    () async {
+      final tokenStore = _TokenStore('member-a');
+      final cache = _MemoryPlannerCache()
+        ..entry = const CachedPlannerState(
+          state: PlannerState.defaults,
+          dirty: true,
+        );
+      final repository = CachedPlannerRepository(
+        remote: PlannerApi(
+          baseUrl: Uri.parse('https://api.example.test'),
+          tokenStore: tokenStore,
+          client: MockClient((_) async {
+            tokenStore.token = 'member-b';
+            return http.Response('offline', 503);
+          }),
+        ),
+        cache: cache,
+      );
+
+      await expectLater(repository.load(), throwsA(isA<AuthException>()));
+      expect(tokenStore.token, 'member-b');
+      repository.close();
+    },
+  );
+
+  test(
     'whenIdle includes the latest save queued during an active save',
     () async {
       final firstResponse = Completer<http.Response>();
@@ -200,11 +227,15 @@ class _MemoryPlannerCache implements PlannerCache {
   PlannerState? get state => entry?.state;
 
   @override
-  Future<CachedPlannerState?> read() async => entry;
+  Future<CachedPlannerState?> read({required String sessionToken}) async =>
+      entry;
 
   @override
-  Future<void> write(PlannerState value, {required bool dirty}) async =>
-      entry = CachedPlannerState(state: value, dirty: dirty);
+  Future<void> write(
+    PlannerState value, {
+    required String sessionToken,
+    required bool dirty,
+  }) async => entry = CachedPlannerState(state: value, dirty: dirty);
 }
 
 class _TokenStore implements TokenStore {

@@ -129,7 +129,9 @@ List<Exercise> selectTodayExercises(
   if (exercises.isEmpty || limit <= 0) return const [];
   final title = workoutTitle.toLowerCase();
   final keywords = <String>{
-    if (title.contains('chân') || title.contains('mông')) ...[
+    if (title.contains('chân') ||
+        title.contains('mông') ||
+        title.contains('thân dưới')) ...[
       'chân',
       'mông',
       'đùi',
@@ -205,7 +207,12 @@ class _TodayScreenState extends State<TodayScreen> {
 
   Future<void> _refreshPlan() async {
     final generation = ++_refreshGeneration;
-    if (mounted) setState(() => _planLoading = true);
+    if (mounted) {
+      setState(() {
+        _planLoading = true;
+        _plan = PlannerState.defaults;
+      });
+    }
     try {
       final token = await widget.memberTokenStore?.read();
       if (token == null || token.isEmpty) {

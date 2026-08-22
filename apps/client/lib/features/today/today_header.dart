@@ -203,7 +203,10 @@ class _TodayHeaderState extends State<TodayHeader> {
     CatalogApi catalogApi,
     ProgressApi progressApi,
   ) async {
-    await plannerRepository.whenIdle();
+    await plannerRepository.whenIdle().timeout(
+      const Duration(seconds: 16),
+      onTimeout: () {},
+    );
     plannerRepository.close();
     await catalogApi.whenIdle().timeout(
       const Duration(seconds: 16),
