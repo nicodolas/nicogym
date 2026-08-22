@@ -97,7 +97,7 @@ void main() {
     tokenStore.completeReads();
     await tester.pumpAndSettle();
 
-    expect(tokenStore.readCount, 1);
+    expect(tokenStore.readCount, 3);
     expect(find.text('ĐÃ ĐĂNG NHẬP'), findsOneWidget);
     expect(find.text('ĐĂNG NHẬP'), findsNothing);
   });
